@@ -5,7 +5,7 @@ __global__ void add(int *a, int *b, int *c) {
   c[index] = a[index] + b[index];
 }
 
-#define N (2048*2048)
+#define N (2048*2048+43)
 #define THREADS_PER_BLOCK 512
 
 int main(void) {

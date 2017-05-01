@@ -1,3 +1,4 @@
+// export https_proxy=proxy.noc.titech.ac.jp:3128
 // source /usr/apps.sp3/isv/intel/ParallelStudioXE/ClusterEdition/2016-Update3/bin/compilervars.sh intel64
 // cd papi-5.5.1/src
 // ./configure --prefix=$HOME/.papi
