@@ -2,6 +2,8 @@
 // source /usr/apps.sp3/isv/intel/ParallelStudioXE/ClusterEdition/2016-Update3/bin/compilervars.sh intel64
 // cd papi-5.5.1/src
 // ./configure --prefix=$HOME/.papi
+// make
+// make install
 // export PATH=$PATH:$HOME/.papi/bin
 // export CPATH=$CPATH:$HOME/.papi/include
 // export LIBRARY_PATH=$LIBRARY_PATH:$HOME/.papi/lib
