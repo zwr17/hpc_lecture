@@ -1,19 +1,7 @@
-// export https_proxy=proxy.noc.titech.ac.jp:3128
-// source /usr/apps.sp3/isv/intel/ParallelStudioXE/ClusterEdition/2016-Update3/bin/compilervars.sh intel64
-// cd papi-5.5.1/src
-// ./configure --prefix=$HOME/.papi
-// make
-// make install
-// export PATH=$PATH:$HOME/.papi/bin
-// export CPATH=$CPATH:$HOME/.papi/include
-// export LIBRARY_PATH=$LIBRARY_PATH:$HOME/.papi/lib
-// export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/.papi/lib
-// icc step05_sse.cpp -qopenmp -lpapi
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
 #include <immintrin.h>
-#include "pcounter.h"
 #include <sys/time.h>
 double get_time() {
   struct timeval tv;
@@ -26,6 +14,9 @@ int main(int argc, char **argv) {
   float ** A = new float * [N];
   float ** B = new float * [N];
   float ** C = new float * [N];
+  float * h_A = new float [N*N];
+  float * h_B = new float [N*N];
+  float * h_C = new float [N*N];
   for (int i=0; i<N; i++) {
     A[i] = new float [N];
     B[i] = new float [N];
@@ -34,37 +25,28 @@ int main(int argc, char **argv) {
       A[i][j] = drand48();
       B[i][j] = drand48();
       C[i][j] = 0;
+      h_A[N*i+j] = A[i][j];
+      h_B[N*i+j] = B[i][j];
+      h_C[N*i+j] = 0;
     }
   }
-  startPAPI();
   double tic = get_time();
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
-      __m128 Aik = _mm_set1_ps(A[i][k]);
-      for (int j=0; j<N; j+=4) {
-        __m128 Cij = _mm_load_ps(&C[i][j]);
-        __m128 Bkj = _mm_load_ps(&B[k][j]);
-        Bkj = _mm_mul_ps(Aik, Bkj);
-        Cij = _mm_add_ps(Bkj, Cij);
-        _mm_store_ps(&C[i][j], Cij);
+      for (int j=0; j<N; j++) {
+        h_C[N*i+j] += h_A[N*i+k] * h_B[N*k+j];
       }
     }
   }
   double toc = get_time();
-  stopPAPI();
   printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
   tic = get_time();
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
-      __m128 Aik = -_mm_set1_ps(A[i][k]);
-      for (int j=0; j<N; j+=4) {
-        __m128 Cij = _mm_load_ps(&C[i][j]);
-        __m128 Bkj = _mm_load_ps(&B[k][j]);
-        Bkj = _mm_mul_ps(Aik, Bkj);
-        Cij = _mm_add_ps(Bkj, Cij);
-        _mm_store_ps(&C[i][j], Cij);
+      for (int j=0; j<N; j++) {
+        C[i][j] += A[i][k] * B[k][j];
       }
     }
   }
@@ -73,11 +55,10 @@ int main(int argc, char **argv) {
   float err = 0;
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {
-      err += fabs(C[i][j]);
+      err += fabs(h_C[N*i+j]-C[i][j]);
     }
   }
   printf("error: %f\n",err/N/N);
-  printPAPI();
   for (int i=0; i<N; i++) {
     delete[] A[i];
     delete[] B[i];
@@ -86,4 +67,7 @@ int main(int argc, char **argv) {
   delete[] A;
   delete[] B;
   delete[] C;
+  delete[] h_A;
+  delete[] h_B;
+  delete[] h_C;
 }
