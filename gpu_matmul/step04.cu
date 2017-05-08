@@ -1,7 +1,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
-#include <immintrin.h>
 #include <sys/time.h>
 
 #define M 512
@@ -15,9 +14,11 @@ double get_time() {
 __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.y;
   int j = threadIdx.x + blockDim.x * blockIdx.x;
+  float sum = 0.0f;
   for (int k=0; k<N; k++) {
-    C[N*i+j] += A[N*i+k] * B[N*k+j];
+    sum += A[N*i+k] * B[N*k+j];
   }
+  C[N*i+j] = sum;
 }
 
 int main(int argc, char **argv) {

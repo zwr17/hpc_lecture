@@ -1,10 +1,9 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
-#include <immintrin.h>
 #include <sys/time.h>
 
-#define M 512
+#define M 1024
 
 double get_time() {
   struct timeval tv;
@@ -15,14 +14,17 @@ double get_time() {
 __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.y;
   int j = threadIdx.x + blockDim.x * blockIdx.x;
+  float sum = 0.0f;
   __shared__ float s_A[M];
   for (int ks=0; ks<N; ks+=M) {
+    __syncthreads();
     s_A[threadIdx.x] = A[N*i+ks+threadIdx.x];
     __syncthreads();
     for (int k=ks; k<ks+M; k++) {
-      C[N*i+j] += s_A[k-ks] * B[N*k+j];
+      sum += s_A[k-ks] * B[N*k+j];
     }
   }
+  C[N*i+j] = sum;
 }
 
 int main(int argc, char **argv) {

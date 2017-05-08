@@ -1,7 +1,6 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
-#include <immintrin.h>
 #include <sys/time.h>
 
 #define M 512
