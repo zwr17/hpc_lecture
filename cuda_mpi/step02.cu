@@ -1,5 +1,5 @@
 #include <mpi.h>
-#include <stdio.h>
+#include <cstdio>
 
 __global__ void GPU_Kernel() {
   printf(" GPU block  : %d / %d  GPU thread : %d / %d\n",
