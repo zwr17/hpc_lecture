@@ -1,15 +1,3 @@
-/*
- * This code is released into the public domain.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
- * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
- */
-
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -33,7 +21,51 @@
 #include <cublas_v2.h>
 #include <cudnn.h>
 
-#include "readubyte.h"
+#define bswap(x) __builtin_bswap32(x)
+
+struct UByteImageDataset {
+  uint32_t magic;
+  uint32_t length;
+  uint32_t height;
+  uint32_t width;
+  void Swap() {
+    magic = bswap(magic);
+    length = bswap(length);
+    height = bswap(height);
+    width = bswap(width);
+  }
+};
+
+struct UByteLabelDataset {
+  uint32_t magic;
+  uint32_t length;
+  void Swap() {
+    magic = bswap(magic);
+    length = bswap(length);
+  }
+};
+
+size_t ReadUByteDataset(const char *image_filename, const char *label_filename,
+                        uint8_t *data, uint8_t *labels, size_t& width, size_t& height) {
+  size_t size;
+  UByteImageDataset image_header;
+  UByteLabelDataset label_header;
+  FILE * imfp = fopen(image_filename, "r");
+  FILE * lbfp = fopen(label_filename, "r");
+  size = fread(&image_header, sizeof(UByteImageDataset), 1, imfp);
+  size = fread(&label_header, sizeof(UByteLabelDataset), 1, lbfp);
+  image_header.Swap();
+  label_header.Swap();
+  width = image_header.width;
+  height = image_header.height;
+  if(data != NULL)
+    size = fread(data, sizeof(uint8_t), image_header.length * width * height, imfp);
+  if(labels != NULL)
+    size = fread(labels, sizeof(uint8_t), label_header.length, lbfp);
+  fclose(imfp);
+  fclose(lbfp);
+  return image_header.length;
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Definitions and helper utilities
@@ -41,41 +73,14 @@
 // Block width for CUDA kernels
 #define BW 128
 
-#ifdef USE_GFLAGS
-    #include <gflags/gflags.h>
+#define DEFINE_int32(flag, default_value, description) const int FLAGS_##flag = (default_value)
+#define DEFINE_uint64(flag, default_value, description) const unsigned long long FLAGS_##flag = (default_value)
+#define DEFINE_bool(flag, default_value, description) const bool FLAGS_##flag = (default_value)
+#define DEFINE_double(flag, default_value, description) const double FLAGS_##flag = (default_value)
+#define DEFINE_string(flag, default_value, description) const std::string FLAGS_##flag ((default_value))
 
-    #ifndef _WIN32
-        #define gflags google
-    #endif
-#else
-    // Constant versions of gflags
-    #define DEFINE_int32(flag, default_value, description) const int FLAGS_##flag = (default_value)
-    #define DEFINE_uint64(flag, default_value, description) const unsigned long long FLAGS_##flag = (default_value)
-    #define DEFINE_bool(flag, default_value, description) const bool FLAGS_##flag = (default_value)
-    #define DEFINE_double(flag, default_value, description) const double FLAGS_##flag = (default_value)
-    #define DEFINE_string(flag, default_value, description) const std::string FLAGS_##flag ((default_value))
-#endif
-
-/**
- * Computes ceil(x / y) for integral nonnegative values.
- */
-static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator)
-{
-    return (nominator + denominator - 1) / denominator;
-}
-
-/**
- * Saves a PGM grayscale image out of unsigned 8-bit data
- */
-void SavePGMFile(const unsigned char *data, size_t width, size_t height, const char *filename)
-{
-    FILE *fp = fopen(filename, "wb");
-    if (fp)
-    {
-        fprintf(fp, "P5\n%lu %lu\n255\n", width, height);
-        fwrite(data, sizeof(unsigned char), width * height, fp);
-        fclose(fp);
-    }
+static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator) {
+  return (nominator + denominator - 1) / denominator;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -819,14 +824,6 @@ int main(int argc, char **argv)
 
     printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
     printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
-
-    // This code snippet saves a random image and its label
-    /*
-    std::random_device rd_image;
-    int random_image = rd_image() % train_size;
-    std::stringstream ss; ss << "image-" << (int)train_labels[random_image] << ".pgm";
-    SavePGMFile(&train_images[0] + random_image * width*height*channels, width, height, ss.str().c_str());
-    */
 
     // Choose GPU
     int num_gpus;
