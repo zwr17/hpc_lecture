@@ -23,22 +23,25 @@ double get_time() {
   return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
 }
 
-size_t ReadUByteDataset(const char *image_filename, const char *label_filename, uint8_t *data, uint8_t *labels, int width, int height) {
+size_t readImages(const char *filename, uint8_t *data, int width, int height) {
   uint32_t image[4];
-  uint32_t label[2];
-  FILE * image_file = fopen(image_filename, "r");
-  FILE * label_file = fopen(label_filename, "r");
-  size_t size = fread(&image, sizeof(uint32_t), 4, image_file);
-  size = fread(&label, sizeof(uint32_t), 2, label_file);
+  FILE * fid = fopen(filename, "r");
+  size_t size = fread(&image, sizeof(uint32_t), 4, fid);
   uint32_t nimage = __builtin_bswap32(image[1]);
   height = __builtin_bswap32(image[2]);
   width = __builtin_bswap32(image[3]);
-  uint32_t nlabel = __builtin_bswap32(label[1]);
-  size = fread(data, sizeof(uint8_t), nimage * width * height, image_file);
-  size = fread(labels, sizeof(uint8_t), nlabel, label_file);
-  fclose(image_file);
-  fclose(label_file);
+  size = fread(data, sizeof(uint8_t), nimage * width * height, fid);
+  fclose(fid);
   return nimage;
+}
+
+void readLabels(const char *filename, uint8_t *labels) {
+  uint32_t label[2];
+  FILE * fid = fopen(filename, "r");
+  size_t size = fread(&label, sizeof(uint32_t), 2, fid);
+  uint32_t nlabel = __builtin_bswap32(label[1]);
+  size = fread(labels, sizeof(uint8_t), nlabel, fid);
+  fclose(fid);
 }
 
 #define BW 128
@@ -264,7 +267,8 @@ int main(int argc, char **argv) {
   int test_size = 10000;
   printf("Reading input data\n");
   std::vector<uint8_t> train_images(train_size * width * height), train_labels(train_size);
-  train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
+  train_size = readImages("train-images-idx3-ubyte", &train_images[0], width, height);
+  readLabels("train-labels-idx1-ubyte", &train_labels[0]);
 
   ConvBiasLayer conv1(1, 20, 5, (int)width, (int)height);
   MaxPoolLayer pool1(2, 2);
@@ -392,7 +396,8 @@ int main(int argc, char **argv) {
   printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / iterations);
 
   std::vector<uint8_t> test_images(test_size * width * height), test_labels(test_size);
-  test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", &test_images[0], &test_labels[0], width, height);
+  test_size = readImages("t10k-images-idx3-ubyte", &test_images[0], width, height);
+  readLabels("t10k-labels-idx1-ubyte", &test_labels[0]);
   float classification_error = 1.0f;
   int num_errors = 0;
   for (int i=0; i<test_size; i++) {
