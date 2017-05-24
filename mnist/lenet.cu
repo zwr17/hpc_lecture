@@ -1,25 +1,27 @@
+#include <algorithm>
+#include <cfloat>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
 #include <ctime>
-#include <cfloat>
 
-#include <algorithm>
-#include <chrono>
-#include <iomanip>
 #include <iostream>
-#include <map>
-#include <memory>
 #include <random>
 #include <sstream>
 #include <string>
+#include <sys/time.h>
 #include <vector>
 
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
-
 #include <cublas_v2.h>
 #include <cudnn.h>
+
+double get_time() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
+}
 
 #define bswap(x) __builtin_bswap32(x)
 
@@ -45,8 +47,7 @@ struct UByteLabelDataset {
   }
 };
 
-size_t ReadUByteDataset(const char *image_filename, const char *label_filename,
-                        uint8_t *data, uint8_t *labels, size_t& width, size_t& height) {
+size_t ReadUByteDataset(const char *image_filename, const char *label_filename, uint8_t *data, uint8_t *labels, size_t& width, size_t& height) {
   UByteImageDataset image_header;
   UByteLabelDataset label_header;
   FILE * imfp = fopen(image_filename, "r");
@@ -108,10 +109,6 @@ DEFINE_int32(gpu, 0, "The GPU ID to use");
 DEFINE_int32(iterations, 1000, "Number of iterations for training");
 DEFINE_int32(random_seed, -1, "Override random seed (default uses std::random_device)");
 DEFINE_uint64(batch_size, 64, "Batch size for training");
-DEFINE_string(train_images, "train-images-idx3-ubyte", "Training images filename");
-DEFINE_string(train_labels, "train-labels-idx1-ubyte", "Training labels filename");
-DEFINE_string(test_images, "t10k-images-idx3-ubyte", "Test images filename");
-DEFINE_string(test_labels, "t10k-labels-idx1-ubyte", "Test labels filename");
 DEFINE_double(learning_rate, 0.01, "Base learning rate");
 DEFINE_double(lr_gamma, 0.0001, "Learning rate policy gamma");
 DEFINE_double(lr_power, 0.75, "Learning rate policy power");
@@ -202,19 +199,12 @@ struct TrainingContext {
     checkCUDNN(cudnnSetTensor4dDescriptor(conv2BiasTensor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, conv2.out_channels, 1, 1));
     checkCUDNN(cudnnSetPooling2dDescriptor(poolDesc, CUDNN_POOLING_MAX, CUDNN_PROPAGATE_NAN, pool1.size, pool1.size, 0, 0, pool1.stride, pool1.stride));
     checkCUDNN(cudnnSetTensor4dDescriptor(pool2Tensor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch_size, conv2.out_channels, conv2.out_height / pool2.stride, conv2.out_width / pool2.stride));
-    checkCUDNN(cudnnSetTensor4dDescriptor(fc1Tensor,
-                                          CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT,
-                                          batch_size, fc1.outputs, 1, 1));
-    checkCUDNN(cudnnSetTensor4dDescriptor(fc2Tensor,
-                                          CUDNN_TENSOR_NCHW,
-                                          CUDNN_DATA_FLOAT,
-                                          batch_size, fc2.outputs, 1, 1));
-    checkCUDNN(cudnnSetActivationDescriptor(fc1Activation, CUDNN_ACTIVATION_RELU,
-                                            CUDNN_PROPAGATE_NAN, 0.0));
+    checkCUDNN(cudnnSetTensor4dDescriptor(fc1Tensor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch_size, fc1.outputs, 1, 1));
+    checkCUDNN(cudnnSetTensor4dDescriptor(fc2Tensor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch_size, fc2.outputs, 1, 1));
+    checkCUDNN(cudnnSetActivationDescriptor(fc1Activation, CUDNN_ACTIVATION_RELU, CUDNN_PROPAGATE_NAN, 0.0));
     size_t workspace = 0;
     workspace = std::max(workspace, SetFwdConvolutionTensors(conv1, dataTensor, conv1Tensor, conv1filterDesc, conv1Desc, conv1algo));
-    workspace = std::max(workspace, SetBwdConvolutionTensors(dataTensor, conv1Tensor, conv1filterDesc, conv1Desc, &conv1bwfalgo, nullptr));
+    workspace = std::max(workspace, SetBwdConvolutionTensors(dataTensor, conv1Tensor, conv1filterDesc, conv1Desc, &conv1bwfalgo, NULL));
     workspace = std::max(workspace, SetFwdConvolutionTensors(conv2, pool1Tensor, conv2Tensor, conv2filterDesc, conv2Desc, conv2algo));
     workspace = std::max(workspace, SetBwdConvolutionTensors(pool1Tensor, conv2Tensor, conv2filterDesc, conv2Desc, &conv2bwfalgo, &conv2bwdalgo));
     m_workspaceSize = workspace;
@@ -242,8 +232,7 @@ struct TrainingContext {
   }
 
   size_t SetFwdConvolutionTensors(ConvBiasLayer& conv, cudnnTensorDescriptor_t& srcTensorDesc, cudnnTensorDescriptor_t& dstTensorDesc,
-                                  cudnnFilterDescriptor_t& filterDesc, cudnnConvolutionDescriptor_t& convDesc,
-                                  cudnnConvolutionFwdAlgo_t& algo) {
+                                  cudnnFilterDescriptor_t& filterDesc, cudnnConvolutionDescriptor_t& convDesc, cudnnConvolutionFwdAlgo_t& algo) {
     size_t sizeInBytes = 0;
     int n = m_batchSize;
     int c = conv.in_channels;
@@ -259,62 +248,22 @@ struct TrainingContext {
     return sizeInBytes;
   }
 
-  void ForwardPropagation(float *data, float *conv1, float *pool1, float *conv2, float *pool2, float *fc1, float *fc1relu,
-                          float *fc2, float *result,
-                          float *pconv1, float *pconv1bias,
-                          float *pconv2, float *pconv2bias,
-                          float *pfc1, float *pfc1bias,
-                          float *pfc2, float *pfc2bias, void *workspace, float *onevec) {
+  void ForwardPropagation(float *data, float *conv1, float *pool1, float *conv2, float *pool2, float *fc1, float *fc1relu, float *fc2, float *result,
+                          float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias, float *pfc1, float *pfc1bias, float *pfc2, float *pfc2bias, void *workspace, float *onevec) {
     float alpha = 1.0f, beta = 0.0f;
     checkCudaErrors(cudaSetDevice(m_gpuid));
-    checkCUDNN(cudnnConvolutionForward(cudnnHandle, &alpha, dataTensor,
-                                       data, conv1filterDesc, pconv1, conv1Desc,
-                                       conv1algo, workspace, m_workspaceSize, &beta,
-                                       conv1Tensor, conv1));
-    checkCUDNN(cudnnAddTensor(cudnnHandle, &alpha, conv1BiasTensor,
-                              pconv1bias, &alpha, conv1Tensor, conv1));
-    checkCUDNN(cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv1Tensor,
-                                   conv1, &beta, pool1Tensor, pool1));
-    checkCUDNN(cudnnConvolutionForward(cudnnHandle, &alpha, pool1Tensor,
-                                       pool1, conv2filterDesc, pconv2, conv2Desc,
-                                       conv2algo, workspace, m_workspaceSize, &beta,
-                                       conv2Tensor, conv2));
-    checkCUDNN(cudnnAddTensor(cudnnHandle, &alpha, conv2BiasTensor,
-                              pconv2bias, &alpha, conv2Tensor, conv2));
-    checkCUDNN(cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv2Tensor,
-                                   conv2, &beta, pool2Tensor, pool2));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N,
-                                ref_fc1.outputs, m_batchSize, ref_fc1.inputs,
-                                &alpha,
-                                pfc1, ref_fc1.inputs,
-                                pool2, ref_fc1.inputs,
-                                &beta,
-                                fc1, ref_fc1.outputs));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N,
-                                ref_fc1.outputs, m_batchSize, 1,
-                                &alpha,
-                                pfc1bias, ref_fc1.outputs,
-                                onevec, 1,
-                                &alpha,
-                                fc1, ref_fc1.outputs));
-    checkCUDNN(cudnnActivationForward(cudnnHandle, fc1Activation, &alpha,
-                                      fc1Tensor, fc1, &beta, fc1Tensor, fc1relu));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N,
-                                ref_fc2.outputs, m_batchSize, ref_fc2.inputs,
-                                &alpha,
-                                pfc2, ref_fc2.inputs,
-                                fc1relu, ref_fc2.inputs,
-                                &beta,
-                                fc2, ref_fc2.outputs));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N,
-                                ref_fc2.outputs, m_batchSize, 1,
-                                &alpha,
-                                pfc2bias, ref_fc2.outputs,
-                                onevec, 1,
-                                &alpha,
-                                fc2, ref_fc2.outputs));
-    checkCUDNN(cudnnSoftmaxForward(cudnnHandle, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL,
-                                   &alpha, fc2Tensor, fc2, &beta, fc2Tensor, result));
+    checkCUDNN(cudnnConvolutionForward(cudnnHandle, &alpha, dataTensor, data, conv1filterDesc, pconv1, conv1Desc, conv1algo, workspace, m_workspaceSize, &beta, conv1Tensor, conv1));
+    checkCUDNN(cudnnAddTensor(cudnnHandle, &alpha, conv1BiasTensor, pconv1bias, &alpha, conv1Tensor, conv1));
+    checkCUDNN(cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv1Tensor, conv1, &beta, pool1Tensor, pool1));
+    checkCUDNN(cudnnConvolutionForward(cudnnHandle, &alpha, pool1Tensor, pool1, conv2filterDesc, pconv2, conv2Desc, conv2algo, workspace, m_workspaceSize, &beta, conv2Tensor, conv2));
+    checkCUDNN(cudnnAddTensor(cudnnHandle, &alpha, conv2BiasTensor, pconv2bias, &alpha, conv2Tensor, conv2));
+    checkCUDNN(cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv2Tensor, conv2, &beta, pool2Tensor, pool2));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize, ref_fc1.inputs, &alpha, pfc1, ref_fc1.inputs, pool2, ref_fc1.inputs, &beta, fc1, ref_fc1.outputs));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize, 1, &alpha, pfc1bias, ref_fc1.outputs, onevec, 1, &alpha, fc1, ref_fc1.outputs));
+    checkCUDNN(cudnnActivationForward(cudnnHandle, fc1Activation, &alpha, fc1Tensor, fc1, &beta, fc1Tensor, fc1relu));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize, ref_fc2.inputs, &alpha, pfc2, ref_fc2.inputs, fc1relu, ref_fc2.inputs, &beta, fc2, ref_fc2.outputs));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize, 1, &alpha, pfc2bias, ref_fc2.outputs, onevec, 1, &alpha, fc2, ref_fc2.outputs));
+    checkCUDNN(cudnnSoftmaxForward(cudnnHandle, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL, &alpha, fc2Tensor, fc2, &beta, fc2Tensor, result));
   }
 
   size_t SetBwdConvolutionTensors(cudnnTensorDescriptor_t& srcTensorDesc, cudnnTensorDescriptor_t& dstTensorDesc,
@@ -322,107 +271,57 @@ struct TrainingContext {
                                   cudnnConvolutionBwdFilterAlgo_t *falgo, cudnnConvolutionBwdDataAlgo_t *dalgo) {
     size_t sizeInBytes = 0, tmpsize = 0;
     if (falgo) {
-      checkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithm(cudnnHandle, srcTensorDesc, dstTensorDesc, convDesc, filterDesc,
-                                                            CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST, 0, falgo));
-      checkCUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(cudnnHandle, srcTensorDesc, dstTensorDesc, convDesc, filterDesc,
-                                                                *falgo, &tmpsize));
+      checkCUDNN(cudnnGetConvolutionBackwardFilterAlgorithm(cudnnHandle, srcTensorDesc, dstTensorDesc, convDesc, filterDesc, CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST, 0, falgo));
+      checkCUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(cudnnHandle, srcTensorDesc, dstTensorDesc, convDesc, filterDesc, *falgo, &tmpsize));
       sizeInBytes = std::max(sizeInBytes, tmpsize);
     }
     if (dalgo) {
-      checkCUDNN(cudnnGetConvolutionBackwardDataAlgorithm(cudnnHandle, filterDesc, dstTensorDesc, convDesc, srcTensorDesc,
-                                                          CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST, 0, dalgo));
-      checkCUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(cudnnHandle, filterDesc, dstTensorDesc, convDesc, srcTensorDesc,
-                                                              *dalgo, &tmpsize));
+      checkCUDNN(cudnnGetConvolutionBackwardDataAlgorithm(cudnnHandle, filterDesc, dstTensorDesc, convDesc, srcTensorDesc, CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST, 0, dalgo));
+      checkCUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(cudnnHandle, filterDesc, dstTensorDesc, convDesc, srcTensorDesc, *dalgo, &tmpsize));
       sizeInBytes = std::max(sizeInBytes, tmpsize);
     }
     return sizeInBytes;
   }
 
   void Backpropagation(ConvBiasLayer& layer_conv1, MaxPoolLayer& layer_pool1, ConvBiasLayer& layer_conv2, MaxPoolLayer& layer_pool2,
-                       float *data, float *labels, float *conv1, float *pool1, float *conv2, float *pool2, float *fc1, float *fc1relu,
-                       float *fc2, float *fc2smax, float *dloss_data,
-                       float *pconv1, float *pconv1bias,
-                       float *pconv2, float *pconv2bias,
-                       float *pfc1, float *pfc1bias,
-                       float *pfc2, float *pfc2bias,
-                       float *gconv1, float *gconv1bias, float *dpool1,
-                       float *gconv2, float *gconv2bias, float *dconv2, float *dpool2,
-                       float *gfc1, float *gfc1bias, float *dfc1, float *dfc1relu,
-                       float *gfc2, float *gfc2bias, float *dfc2,
-                       void *workspace, float *onevec) {
+                       float *data, float *labels, float *conv1, float *pool1, float *conv2, float *pool2, float *fc1, float *fc1relu, float *fc2, float *fc2smax, float *dloss_data,
+                       float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias, float *pfc1, float *pfc1bias, float *pfc2, float *pfc2bias,
+                       float *gconv1, float *gconv1bias, float *dpool1, float *gconv2, float *gconv2bias, float *dconv2, float *dpool2,
+                       float *gfc1, float *gfc1bias, float *dfc1, float *dfc1relu, float *gfc2, float *gfc2bias, float *dfc2, void *workspace, float *onevec) {
     float alpha = 1.0f, beta = 0.0f;
     float scalVal = 1.0f / static_cast<float>(m_batchSize);
     checkCudaErrors(cudaSetDevice(m_gpuid));
     checkCudaErrors(cudaMemcpyAsync(dloss_data, fc2smax, sizeof(float) * m_batchSize * ref_fc2.outputs, cudaMemcpyDeviceToDevice));
     SoftmaxLossBackprop<<<RoundUp(m_batchSize, BW), BW>>>(labels, ref_fc2.outputs, m_batchSize, dloss_data);
     checkCudaErrors(cublasSscal(cublasHandle, ref_fc2.outputs * m_batchSize, &scalVal, dloss_data, 1));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc2.inputs, ref_fc2.outputs, m_batchSize,
-                                &alpha, fc1relu, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, gfc2, ref_fc2.inputs));
-    checkCudaErrors(cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize,
-                                &alpha, dloss_data, ref_fc2.outputs, onevec, 1, &beta, gfc2bias, 1));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.inputs, m_batchSize, ref_fc2.outputs,
-                                &alpha, pfc2, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, dfc2, ref_fc2.inputs));
-    checkCUDNN(cudnnActivationBackward(cudnnHandle, fc1Activation, &alpha,
-                                       fc1Tensor, fc1relu, fc1Tensor, dfc2,
-                                       fc1Tensor, fc1, &beta, fc1Tensor, dfc1relu));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc1.inputs, ref_fc1.outputs, m_batchSize,
-                                &alpha, pool2, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, gfc1, ref_fc1.inputs));
-    checkCudaErrors(cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize,
-                                &alpha, dfc1relu, ref_fc1.outputs, onevec, 1, &beta, gfc1bias, 1));
-    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.inputs, m_batchSize, ref_fc1.outputs,
-                                &alpha, pfc1, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, dfc1, ref_fc1.inputs));
-    checkCUDNN(cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha,
-                                    pool2Tensor, pool2, pool2Tensor, dfc1,
-                                    conv2Tensor, conv2, &beta, conv2Tensor, dpool2));
-    checkCUDNN(cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv2Tensor,
-                                            dpool2, &beta, conv2BiasTensor, gconv2bias));
-    checkCUDNN(cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, pool1Tensor,
-                                              pool1, conv2Tensor, dpool2, conv2Desc,
-                                              conv2bwfalgo, workspace, m_workspaceSize,
-                                              &beta, conv2filterDesc, gconv2));
-    checkCUDNN(cudnnConvolutionBackwardData(cudnnHandle, &alpha, conv2filterDesc,
-                                            pconv2, conv2Tensor, dpool2, conv2Desc,
-                                            conv2bwdalgo, workspace, m_workspaceSize,
-                                            &beta, pool1Tensor, dconv2));
-    checkCUDNN(cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha,
-                                    pool1Tensor, pool1, pool1Tensor, dconv2,
-                                    conv1Tensor, conv1, &beta, conv1Tensor, dpool1));
-    checkCUDNN(cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv1Tensor,
-                                            dpool1, &beta, conv1BiasTensor, gconv1bias));
-    checkCUDNN(cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, dataTensor,
-                                              data, conv1Tensor, dpool1, conv1Desc,
-                                              conv1bwfalgo, workspace, m_workspaceSize,
-                                              &beta, conv1filterDesc, gconv1));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc2.inputs, ref_fc2.outputs, m_batchSize, &alpha, fc1relu, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, gfc2, ref_fc2.inputs));
+    checkCudaErrors(cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize, &alpha, dloss_data, ref_fc2.outputs, onevec, 1, &beta, gfc2bias, 1));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.inputs, m_batchSize, ref_fc2.outputs, &alpha, pfc2, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, dfc2, ref_fc2.inputs));
+    checkCUDNN(cudnnActivationBackward(cudnnHandle, fc1Activation, &alpha, fc1Tensor, fc1relu, fc1Tensor, dfc2, fc1Tensor, fc1, &beta, fc1Tensor, dfc1relu));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc1.inputs, ref_fc1.outputs, m_batchSize, &alpha, pool2, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, gfc1, ref_fc1.inputs));
+    checkCudaErrors(cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize, &alpha, dfc1relu, ref_fc1.outputs, onevec, 1, &beta, gfc1bias, 1));
+    checkCudaErrors(cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.inputs, m_batchSize, ref_fc1.outputs, &alpha, pfc1, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, dfc1, ref_fc1.inputs));
+    checkCUDNN(cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha, pool2Tensor, pool2, pool2Tensor, dfc1, conv2Tensor, conv2, &beta, conv2Tensor, dpool2));
+    checkCUDNN(cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv2Tensor, dpool2, &beta, conv2BiasTensor, gconv2bias));
+    checkCUDNN(cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, pool1Tensor, pool1, conv2Tensor, dpool2, conv2Desc, conv2bwfalgo, workspace, m_workspaceSize, &beta, conv2filterDesc, gconv2));
+    checkCUDNN(cudnnConvolutionBackwardData(cudnnHandle, &alpha, conv2filterDesc, pconv2, conv2Tensor, dpool2, conv2Desc, conv2bwdalgo, workspace, m_workspaceSize, &beta, pool1Tensor, dconv2));
+    checkCUDNN(cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha, pool1Tensor, pool1, pool1Tensor, dconv2, conv1Tensor, conv1, &beta, conv1Tensor, dpool1));
+    checkCUDNN(cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv1Tensor, dpool1, &beta, conv1BiasTensor, gconv1bias));
+    checkCUDNN(cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, dataTensor, data, conv1Tensor, dpool1, conv1Desc, conv1bwfalgo, workspace, m_workspaceSize, &beta, conv1filterDesc, gconv1));
   }
 
-  void UpdateWeights(float learning_rate,
-                     ConvBiasLayer& conv1, ConvBiasLayer& conv2,
-                     float *pconv1, float *pconv1bias,
-                     float *pconv2, float *pconv2bias,
-                     float *pfc1, float *pfc1bias,
-                     float *pfc2, float *pfc2bias,
-                     float *gconv1, float *gconv1bias,
-                     float *gconv2, float *gconv2bias,
-                     float *gfc1, float *gfc1bias,
-                     float *gfc2, float *gfc2bias) {
+  void UpdateWeights(float learning_rate, ConvBiasLayer& conv1, ConvBiasLayer& conv2, float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias,
+                     float *pfc1, float *pfc1bias, float *pfc2, float *pfc2bias, float *gconv1, float *gconv1bias, float *gconv2, float *gconv2bias, float *gfc1, float *gfc1bias, float *gfc2, float *gfc2bias) {
     float alpha = -learning_rate;
     checkCudaErrors(cudaSetDevice(m_gpuid));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()),
-                                &alpha, gconv1, 1, pconv1, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()),
-                                &alpha, gconv1bias, 1, pconv1bias, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()),
-                                &alpha, gconv2, 1, pconv2, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()),
-                                &alpha, gconv2bias, 1, pconv2bias, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()),
-                                &alpha, gfc1, 1, pfc1, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()),
-                                &alpha, gfc1bias, 1, pfc1bias, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()),
-                                &alpha, gfc2, 1, pfc2, 1));
-    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()),
-                                &alpha, gfc2bias, 1, pfc2bias, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()), &alpha, gconv1, 1, pconv1, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()), &alpha, gconv1bias, 1, pconv1bias, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()), &alpha, gconv2, 1, pconv2, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(conv2.pbias.size()), &alpha, gconv2bias, 1, pconv2bias, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pneurons.size()), &alpha, gfc1, 1, pfc1, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc1.pbias.size()), &alpha, gfc1bias, 1, pfc1bias, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pneurons.size()), &alpha, gfc2, 1, pfc2, 1));
+    checkCudaErrors(cublasSaxpy(cublasHandle, static_cast<int>(ref_fc2.pbias.size()), &alpha, gfc2bias, 1, pfc2bias, 1));
   }
 };
 
@@ -430,11 +329,11 @@ int main(int argc, char **argv) {
   size_t width, height, channels = 1;
   printf("Reading input data\n");
   size_t train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", NULL, NULL, width, height);
-  size_t test_size = ReadUByteDataset("t10k-images-idx3-ubyte", FLAGS_test_labels.c_str(), NULL, NULL, width, height);
+  size_t test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", NULL, NULL, width, height);
   std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
   std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
-  size_t size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
-  size = ReadUByteDataset("t10k-images-idx3-ubyte", FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height);
+  train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
+  test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", &test_images[0], &test_labels[0], width, height);
   printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
   printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
 
@@ -520,7 +419,7 @@ int main(int argc, char **argv) {
   checkCudaErrors(cudaMalloc(&d_dlossdata,sizeof(float) * context.m_batchSize * fc2.outputs));
 
   float *d_onevec;
-  void *d_cudnn_workspace = nullptr;
+  void *d_cudnn_workspace = NULL;
   checkCudaErrors(cudaMalloc(&d_onevec, sizeof(float)* context.m_batchSize));
   if (context.m_workspaceSize > 0)
     checkCudaErrors(cudaMalloc(&d_cudnn_workspace, context.m_workspaceSize));
@@ -545,18 +444,14 @@ int main(int argc, char **argv) {
 
   printf("Training...\n");
   checkCudaErrors(cudaDeviceSynchronize());
-  auto t1 = std::chrono::high_resolution_clock::now();
-  for (int iter = 0; iter < FLAGS_iterations; ++iter) {
+  double t1 = get_time();
+  for (int iter=0; iter<FLAGS_iterations; iter++) {
     int imageid = iter % (train_size / context.m_batchSize);
-    checkCudaErrors(cudaMemcpyAsync(d_data, &train_images_float[imageid * context.m_batchSize * width*height*channels],
-                                    sizeof(float) * context.m_batchSize * channels * width * height, cudaMemcpyHostToDevice));
-    checkCudaErrors(cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.m_batchSize],
-                                    sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice));
-    context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
-                               d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
-                               d_cudnn_workspace, d_onevec);
-    context.Backpropagation(conv1, pool1, conv2, pool2,
-                            d_data, d_labels, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_dlossdata,
+    checkCudaErrors(cudaMemcpyAsync(d_data, &train_images_float[imageid * context.m_batchSize * width*height*channels], sizeof(float) * context.m_batchSize * channels * width * height, cudaMemcpyHostToDevice));
+    checkCudaErrors(cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.m_batchSize], sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice));
+    context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias,
+                               d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
+    context.Backpropagation(conv1, pool1, conv2, pool2, d_data, d_labels, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_dlossdata,
                             d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
                             d_gconv1, d_gconv1bias, d_dpool1, d_gconv2, d_gconv2bias, d_dconv2, d_dpool2, d_gfc1, d_gfc1bias,
                             d_dfc1, d_dfc1relu, d_gfc2, d_gfc2bias, d_dfc2, d_cudnn_workspace, d_onevec);
@@ -566,8 +461,8 @@ int main(int argc, char **argv) {
                           d_gconv1, d_gconv1bias, d_gconv2, d_gconv2bias, d_gfc1, d_gfc1bias, d_gfc2, d_gfc2bias);
   }
   checkCudaErrors(cudaDeviceSynchronize());
-  auto t2 = std::chrono::high_resolution_clock::now();
-  printf("Iteration time: %f ms\n", std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / 1000.0f / FLAGS_iterations);
+  double t2 = get_time();
+  printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / FLAGS_iterations);
 
   float classification_error = 1.0f;
   TrainingContext test_context(FLAGS_gpu, 1, conv1, pool1, conv2, pool2, fc1, fc2);
@@ -578,7 +473,7 @@ int main(int argc, char **argv) {
   int num_errors = 0;
   for (int i=0; i<test_size; i++) {
     std::vector<float> data(width * height);
-    for (int j = 0; j < width * height; ++j)
+    for (int j=0; j<width*height; j++)
       data[j] = (float)test_images[i * width*height*channels + j] / 255.0f;
     checkCudaErrors(cudaMemcpyAsync(d_data, &data[0], sizeof(float) * width * height, cudaMemcpyHostToDevice));
     test_context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
@@ -587,11 +482,11 @@ int main(int argc, char **argv) {
     std::vector<float> class_vec(10);
     checkCudaErrors(cudaMemcpy(&class_vec[0], d_fc2smax, sizeof(float) * 10, cudaMemcpyDeviceToHost));
     int chosen = 0;
-    for (int id = 1; id < 10; ++id) {
+    for (int id=1; id<10; id++) {
       if (class_vec[chosen] < class_vec[id]) chosen = id;
     }
     if (chosen != test_labels[i])
-      ++num_errors;
+      num_errors++;
   }
   classification_error = (float)num_errors / (float)test_size;
   printf("Classification result: %.2f%% error (used %d images)\n", classification_error * 100.0f, (int)test_size);
@@ -627,7 +522,7 @@ int main(int argc, char **argv) {
   checkCudaErrors(cudaFree(d_labels));
   checkCudaErrors(cudaFree(d_dlossdata));
   checkCudaErrors(cudaFree(d_onevec));
-  if (d_cudnn_workspace != nullptr)
+  if (d_cudnn_workspace != NULL)
     checkCudaErrors(cudaFree(d_cudnn_workspace));
   return 0;
 }
