@@ -46,8 +46,8 @@ void readLabels(const char *filename, std::vector<uint8_t> &labels) {
 
 #define BW 128
 
-static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator) {
-  return (nominator + denominator - 1) / denominator;
+static inline unsigned int RoundUp(unsigned int numerator, unsigned int denominator) {
+  return (numerator + denominator - 1) / denominator;
 }
 
 struct ConvBiasLayer {
@@ -106,7 +106,7 @@ struct TrainingContext {
   cudnnActivationDescriptor_t fc1Activation;
 
   int batch_size;
-  size_t m_workspaceSize;
+  size_t workspace_size;
   FullyConnectedLayer& ref_fc1, &ref_fc2;
   TrainingContext(int batch_size_, ConvBiasLayer& conv1, MaxPoolLayer& pool1, ConvBiasLayer& conv2, MaxPoolLayer& pool2,
                   FullyConnectedLayer& fc1, FullyConnectedLayer& fc2) : ref_fc1(fc1), ref_fc2(fc2) {
@@ -140,7 +140,7 @@ struct TrainingContext {
     workspace = std::max(workspace, SetBwdConvolutionTensors(dataTensor, conv1Tensor, conv1filterDesc, conv1Desc, &conv1bwfalgo, NULL));
     workspace = std::max(workspace, SetFwdConvolutionTensors(conv2, pool1Tensor, conv2Tensor, conv2filterDesc, conv2Desc, conv2algo));
     workspace = std::max(workspace, SetBwdConvolutionTensors(pool1Tensor, conv2Tensor, conv2filterDesc, conv2Desc, &conv2bwfalgo, &conv2bwdalgo));
-    m_workspaceSize = workspace;
+    workspace_size = workspace;
   }
 
   ~TrainingContext() {
@@ -183,10 +183,10 @@ struct TrainingContext {
   void ForwardPropagation(float *data, float *conv1, float *pool1, float *conv2, float *pool2, float *fc1, float *fc1relu, float *fc2, float *result,
                           float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias, float *pfc1, float *pfc1bias, float *pfc2, float *pfc2bias, void *workspace, float *onevec) {
     float alpha = 1.0f, beta = 0.0f;
-    cudnnConvolutionForward(cudnnHandle, &alpha, dataTensor, data, conv1filterDesc, pconv1, conv1Desc, conv1algo, workspace, m_workspaceSize, &beta, conv1Tensor, conv1);
+    cudnnConvolutionForward(cudnnHandle, &alpha, dataTensor, data, conv1filterDesc, pconv1, conv1Desc, conv1algo, workspace, workspace_size, &beta, conv1Tensor, conv1);
     cudnnAddTensor(cudnnHandle, &alpha, conv1BiasTensor, pconv1bias, &alpha, conv1Tensor, conv1);
     cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv1Tensor, conv1, &beta, pool1Tensor, pool1);
-    cudnnConvolutionForward(cudnnHandle, &alpha, pool1Tensor, pool1, conv2filterDesc, pconv2, conv2Desc, conv2algo, workspace, m_workspaceSize, &beta, conv2Tensor, conv2);
+    cudnnConvolutionForward(cudnnHandle, &alpha, pool1Tensor, pool1, conv2filterDesc, pconv2, conv2Desc, conv2algo, workspace, workspace_size, &beta, conv2Tensor, conv2);
     cudnnAddTensor(cudnnHandle, &alpha, conv2BiasTensor, pconv2bias, &alpha, conv2Tensor, conv2);
     cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv2Tensor, conv2, &beta, pool2Tensor, pool2);
     cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc1.outputs, batch_size, ref_fc1.inputs, &alpha, pfc1, ref_fc1.inputs, pool2, ref_fc1.inputs, &beta, fc1, ref_fc1.outputs);
@@ -233,11 +233,11 @@ struct TrainingContext {
     cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.inputs, batch_size, ref_fc1.outputs, &alpha, pfc1, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, dfc1, ref_fc1.inputs);
     cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha, pool2Tensor, pool2, pool2Tensor, dfc1, conv2Tensor, conv2, &beta, conv2Tensor, dpool2);
     cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv2Tensor, dpool2, &beta, conv2BiasTensor, gconv2bias);
-    cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, pool1Tensor, pool1, conv2Tensor, dpool2, conv2Desc, conv2bwfalgo, workspace, m_workspaceSize, &beta, conv2filterDesc, gconv2);
-    cudnnConvolutionBackwardData(cudnnHandle, &alpha, conv2filterDesc, pconv2, conv2Tensor, dpool2, conv2Desc, conv2bwdalgo, workspace, m_workspaceSize, &beta, pool1Tensor, dconv2);
+    cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, pool1Tensor, pool1, conv2Tensor, dpool2, conv2Desc, conv2bwfalgo, workspace, workspace_size, &beta, conv2filterDesc, gconv2);
+    cudnnConvolutionBackwardData(cudnnHandle, &alpha, conv2filterDesc, pconv2, conv2Tensor, dpool2, conv2Desc, conv2bwdalgo, workspace, workspace_size, &beta, pool1Tensor, dconv2);
     cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha, pool1Tensor, pool1, pool1Tensor, dconv2, conv1Tensor, conv1, &beta, conv1Tensor, dpool1);
     cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv1Tensor, dpool1, &beta, conv1BiasTensor, gconv1bias);
-    cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, dataTensor, data, conv1Tensor, dpool1, conv1Desc, conv1bwfalgo, workspace, m_workspaceSize, &beta, conv1filterDesc, gconv1);
+    cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, dataTensor, data, conv1Tensor, dpool1, conv1Desc, conv1bwfalgo, workspace, workspace_size, &beta, conv1filterDesc, gconv1);
   }
 
   void UpdateWeights(float learning_rate, ConvBiasLayer& conv1, ConvBiasLayer& conv2, float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias,
@@ -342,7 +342,7 @@ int main(int argc, char **argv) {
   float *d_onevec;
   void *d_cudnn_workspace = NULL;
   cudaMalloc(&d_onevec, sizeof(float)* batch_size);
-  cudaMalloc(&d_cudnn_workspace, context.m_workspaceSize);
+  cudaMalloc(&d_cudnn_workspace, context.workspace_size);
   cudaMemcpyAsync(d_pconv1, &conv1.pconv[0],     sizeof(float) * conv1.pconv.size(),  cudaMemcpyHostToDevice);
   cudaMemcpyAsync(d_pconv1bias, &conv1.pbias[0], sizeof(float) * conv1.pbias.size(),  cudaMemcpyHostToDevice);
   cudaMemcpyAsync(d_pconv2, &conv2.pconv[0],     sizeof(float) * conv2.pconv.size(),  cudaMemcpyHostToDevice);
