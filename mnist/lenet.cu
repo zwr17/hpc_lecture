@@ -1,20 +1,11 @@
-#include <algorithm>
-#include <cfloat>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <ctime>
-#include <iostream>
-#include <sstream>
-#include <stdint.h>
-#include <string>
-#include <sys/time.h>
-#include <vector>
-
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
 #include <cublas_v2.h>
 #include <cudnn.h>
+#include <iostream>
+#include <stdint.h>
+#include <sys/time.h>
+#include <vector>
 
 double get_time() {
   struct timeval tv;
