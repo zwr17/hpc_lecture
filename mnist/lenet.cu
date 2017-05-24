@@ -47,7 +47,7 @@ struct UByteLabelDataset {
   }
 };
 
-size_t ReadUByteDataset(const char *image_filename, const char *label_filename, uint8_t *data, uint8_t *labels, size_t& width, size_t& height) {
+size_t ReadUByteDataset(const char *image_filename, const char *label_filename, uint8_t *data, uint8_t *labels, int width, int height) {
   UByteImageDataset image_header;
   UByteLabelDataset label_header;
   FILE * imfp = fopen(image_filename, "r");
@@ -56,12 +56,8 @@ size_t ReadUByteDataset(const char *image_filename, const char *label_filename, 
   size = fread(&label_header, sizeof(UByteLabelDataset), 1, lbfp);
   image_header.Swap();
   label_header.Swap();
-  width = image_header.width;
-  height = image_header.height;
-  if(data != NULL)
-    size = fread(data, sizeof(uint8_t), image_header.length * width * height, imfp);
-  if(labels != NULL)
-    size = fread(labels, sizeof(uint8_t), label_header.length, lbfp);
+  size = fread(data, sizeof(uint8_t), image_header.length * width * height, imfp);
+  size = fread(labels, sizeof(uint8_t), label_header.length, lbfp);
   fclose(imfp);
   fclose(lbfp);
   return image_header.length;
@@ -72,31 +68,6 @@ size_t ReadUByteDataset(const char *image_filename, const char *label_filename, 
 static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator) {
   return (nominator + denominator - 1) / denominator;
 }
-
-#define FatalError(s) do {                                             \
-    std::stringstream _where, _message;                                \
-    _where << __FILE__ << ':' << __LINE__;                             \
-    _message << std::string(s) + "\n" << __FILE__ << ':' << __LINE__;  \
-    std::cerr << _message.str() << "\nAborting...\n";                  \
-    cudaDeviceReset();                                                 \
-    exit(1);                                                           \
-} while(0)
-
-#define checkCUDNN(status) do {                                        \
-    std::stringstream _error;                                          \
-    if (status != CUDNN_STATUS_SUCCESS) {                              \
-      _error << "CUDNN failure: " << cudnnGetErrorString(status);      \
-      FatalError(_error.str());                                        \
-    }                                                                  \
-} while(0)
-
-#define checkCudaErrors(status) do {                                   \
-    std::stringstream _error;                                          \
-    if (status != 0) {                                                 \
-      _error << "Cuda failure: " << status;                            \
-      FatalError(_error.str());                                        \
-    }                                                                  \
-} while(0)
 
 struct ConvBiasLayer {
   int in_channels, out_channels, kernel_size;
@@ -153,16 +124,14 @@ struct TrainingContext {
   cudnnPoolingDescriptor_t poolDesc;
   cudnnActivationDescriptor_t fc1Activation;
 
-  int m_gpuid;
   int m_batchSize;
   size_t m_workspaceSize;
   FullyConnectedLayer& ref_fc1, &ref_fc2;
   TrainingContext& operator=(const TrainingContext&) = delete;
   TrainingContext(const TrainingContext&) = delete;
-  TrainingContext(int gpuid, int batch_size, ConvBiasLayer& conv1, MaxPoolLayer& pool1, ConvBiasLayer& conv2, MaxPoolLayer& pool2,
-                  FullyConnectedLayer& fc1, FullyConnectedLayer& fc2) : ref_fc1(fc1), ref_fc2(fc2), m_gpuid(gpuid) {
+  TrainingContext(int batch_size, ConvBiasLayer& conv1, MaxPoolLayer& pool1, ConvBiasLayer& conv2, MaxPoolLayer& pool2,
+                  FullyConnectedLayer& fc1, FullyConnectedLayer& fc2) : ref_fc1(fc1), ref_fc2(fc2) {
     m_batchSize = batch_size;
-    cudaSetDevice(gpuid);
     cublasCreate(&cublasHandle);
     cudnnCreate(&cudnnHandle);
     cudnnCreateTensorDescriptor(&dataTensor);
@@ -196,7 +165,6 @@ struct TrainingContext {
   }
 
   ~TrainingContext() {
-    cudaSetDevice(m_gpuid);
     cublasDestroy(cublasHandle);
     cudnnDestroy(cudnnHandle);
     cudnnDestroyTensorDescriptor(dataTensor);
@@ -236,7 +204,6 @@ struct TrainingContext {
   void ForwardPropagation(float *data, float *conv1, float *pool1, float *conv2, float *pool2, float *fc1, float *fc1relu, float *fc2, float *result,
                           float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias, float *pfc1, float *pfc1bias, float *pfc2, float *pfc2bias, void *workspace, float *onevec) {
     float alpha = 1.0f, beta = 0.0f;
-    cudaSetDevice(m_gpuid);
     cudnnConvolutionForward(cudnnHandle, &alpha, dataTensor, data, conv1filterDesc, pconv1, conv1Desc, conv1algo, workspace, m_workspaceSize, &beta, conv1Tensor, conv1);
     cudnnAddTensor(cudnnHandle, &alpha, conv1BiasTensor, pconv1bias, &alpha, conv1Tensor, conv1);
     cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv1Tensor, conv1, &beta, pool1Tensor, pool1);
@@ -275,7 +242,6 @@ struct TrainingContext {
                        float *gfc1, float *gfc1bias, float *dfc1, float *dfc1relu, float *gfc2, float *gfc2bias, float *dfc2, void *workspace, float *onevec) {
     float alpha = 1.0f, beta = 0.0f;
     float scalVal = 1.0f / static_cast<float>(m_batchSize);
-    cudaSetDevice(m_gpuid);
     cudaMemcpyAsync(dloss_data, fc2smax, sizeof(float) * m_batchSize * ref_fc2.outputs, cudaMemcpyDeviceToDevice);
     SoftmaxLossBackprop<<<RoundUp(m_batchSize, BW), BW>>>(labels, ref_fc2.outputs, m_batchSize, dloss_data);
     cublasSscal(cublasHandle, ref_fc2.outputs * m_batchSize, &scalVal, dloss_data, 1);
@@ -298,7 +264,6 @@ struct TrainingContext {
   void UpdateWeights(float learning_rate, ConvBiasLayer& conv1, ConvBiasLayer& conv2, float *pconv1, float *pconv1bias, float *pconv2, float *pconv2bias,
                      float *pfc1, float *pfc1bias, float *pfc2, float *pfc2bias, float *gconv1, float *gconv1bias, float *gconv2, float *gconv2bias, float *gfc1, float *gfc1bias, float *gfc2, float *gfc2bias) {
     float alpha = -learning_rate;
-    cudaSetDevice(m_gpuid);
     cublasSaxpy(cublasHandle, static_cast<int>(conv1.pconv.size()), &alpha, gconv1, 1, pconv1, 1);
     cublasSaxpy(cublasHandle, static_cast<int>(conv1.pbias.size()), &alpha, gconv1bias, 1, pconv1bias, 1);
     cublasSaxpy(cublasHandle, static_cast<int>(conv2.pconv.size()), &alpha, gconv2, 1, pconv2, 1);
@@ -311,16 +276,15 @@ struct TrainingContext {
 };
 
 int main(int argc, char **argv) {
-  int gpu_id = 0;
   int iterations = 1000;
   int batch_size = 64;
   double learning_rate = 0.01;
   double lr_gamma = 0.0001;
   double lr_power = -0.75;
-  size_t width, height;
+  int width = 28, height = 28;
+  int train_size = 60000;
+  int test_size = 10000;
   printf("Reading input data\n");
-  size_t train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", NULL, NULL, width, height);
-  size_t test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", NULL, NULL, width, height);
   std::vector<uint8_t> train_images(train_size * width * height), train_labels(train_size);
   std::vector<uint8_t> test_images(test_size * width * height), test_labels(test_size);
   train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
@@ -328,13 +292,14 @@ int main(int argc, char **argv) {
   printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
   printf("Batch size: %d, iterations: %d\n", batch_size, iterations);
 
+  printf("%d %d\n",train_size,test_size);
   ConvBiasLayer conv1(1, 20, 5, (int)width, (int)height);
   MaxPoolLayer pool1(2, 2);
   ConvBiasLayer conv2(conv1.out_channels, 50, 5, conv1.out_width / pool1.stride, conv1.out_height / pool1.stride);
   MaxPoolLayer pool2(2, 2);
   FullyConnectedLayer fc1((conv2.out_channels*conv2.out_width*conv2.out_height) / (pool2.stride * pool2.stride), 500);
   FullyConnectedLayer fc2(fc1.outputs, 10);
-  TrainingContext context(gpu_id, batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
+  TrainingContext context(batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
 
   std::random_device rd;
   std::mt19937 gen(rd());
@@ -454,18 +419,15 @@ int main(int argc, char **argv) {
   printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / iterations);
 
   float classification_error = 1.0f;
-  TrainingContext test_context(gpu_id, 1, conv1, pool1, conv2, pool2, fc1, fc2);
-  cudaFree(d_cudnn_workspace);
-  cudaMalloc(&d_cudnn_workspace, test_context.m_workspaceSize);
   int num_errors = 0;
   for (int i=0; i<test_size; i++) {
     std::vector<float> data(width * height);
     for (int j=0; j<width*height; j++)
       data[j] = (float)test_images[i*width*height+j] / 255.0f;
     cudaMemcpyAsync(d_data, &data[0], sizeof(float) * width * height, cudaMemcpyHostToDevice);
-    test_context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
-                                    d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias,
-                                    d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
+    context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
+                               d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias,
+                               d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
     std::vector<float> class_vec(10);
     cudaMemcpy(&class_vec[0], d_fc2smax, sizeof(float) * 10, cudaMemcpyDeviceToHost);
     int chosen = 0;
