@@ -47,12 +47,11 @@ struct UByteLabelDataset {
 
 size_t ReadUByteDataset(const char *image_filename, const char *label_filename,
                         uint8_t *data, uint8_t *labels, size_t& width, size_t& height) {
-  size_t size;
   UByteImageDataset image_header;
   UByteLabelDataset label_header;
   FILE * imfp = fopen(image_filename, "r");
   FILE * lbfp = fopen(label_filename, "r");
-  size = fread(&image_header, sizeof(UByteImageDataset), 1, imfp);
+  size_t size = fread(&image_header, sizeof(UByteImageDataset), 1, imfp);
   size = fread(&label_header, sizeof(UByteLabelDataset), 1, lbfp);
   image_header.Swap();
   label_header.Swap();
@@ -67,10 +66,6 @@ size_t ReadUByteDataset(const char *image_filename, const char *label_filename,
   return image_header.length;
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////
-// Definitions and helper utilities
-
-// Block width for CUDA kernels
 #define BW 128
 
 #define DEFINE_int32(flag, default_value, description) const int FLAGS_##flag = (default_value)
@@ -82,11 +77,6 @@ size_t ReadUByteDataset(const char *image_filename, const char *label_filename,
 static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator) {
   return (nominator + denominator - 1) / denominator;
 }
-
-//////////////////////////////////////////////////////////////////////////////
-// Error handling
-// Adapted from the CUDNN classification code
-// sample: https://developer.nvidia.com/cuDNN
 
 #define FatalError(s) do {                                             \
     std::stringstream _where, _message;                                \
@@ -179,7 +169,7 @@ struct ConvBiasLayer
             printf("ERROR: Cannot open file %s\n", ssf.str().c_str());
             return false;
         }
-        fread(&pconv[0], sizeof(float), in_channels * out_channels * kernel_size * kernel_size, fp);
+        size_t size = fread(&pconv[0], sizeof(float), in_channels * out_channels * kernel_size * kernel_size, fp);
         fclose(fp);
 
         // Read bias file
@@ -189,7 +179,7 @@ struct ConvBiasLayer
             printf("ERROR: Cannot open file %s\n", ssbf.str().c_str());
             return false;
         }
-        fread(&pbias[0], sizeof(float), out_channels, fp);
+        size = fread(&pbias[0], sizeof(float), out_channels, fp);
         fclose(fp);
         return true;
     }
@@ -255,7 +245,7 @@ struct FullyConnectedLayer
             printf("ERROR: Cannot open file %s\n", ssf.str().c_str());
             return false;
         }
-        fread(&pneurons[0], sizeof(float), inputs * outputs, fp);
+        size_t size = fread(&pneurons[0], sizeof(float), inputs * outputs, fp);
         fclose(fp);
 
         // Read bias file
@@ -265,7 +255,7 @@ struct FullyConnectedLayer
             printf("ERROR: Cannot open file %s\n", ssbf.str().c_str());
             return false;
         }
-        fread(&pbias[0], sizeof(float), outputs, fp);
+        size = fread(&pbias[0], sizeof(float), outputs, fp);
         fclose(fp);
         return true;
     }
@@ -796,34 +786,17 @@ struct TrainingContext
 ///////////////////////////////////////////////////////////////////////////////////////////
 // Main function
 
-int main(int argc, char **argv)
-{
-#ifdef USE_GFLAGS
-    gflags::ParseCommandLineFlags(&argc, &argv, true);
-#endif
-
-    size_t width, height, channels = 1;
-
-    // Open input data
-    printf("Reading input data\n");
-
-    // Read dataset sizes
-    size_t train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), nullptr, nullptr, width, height);
-    size_t test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), nullptr, nullptr, width, height);
-    if (train_size == 0)
-        return 1;
-
-    std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
-    std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
-
-    // Read data from datasets
-    if (ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), &train_images[0], &train_labels[0], width, height) != train_size)
-        return 2;
-    if (ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height) != test_size)
-        return 3;
-
-    printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
-    printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
+int main(int argc, char **argv) {
+  size_t width, height, channels = 1;
+  printf("Reading input data\n");
+  size_t train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), NULL, NULL, width, height);
+  size_t test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), NULL, NULL, width, height);
+  std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
+  std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
+  size_t size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), &train_images[0], &train_labels[0], width, height);
+  size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height);
+  printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
+  printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
 
     // Choose GPU
     int num_gpus;
