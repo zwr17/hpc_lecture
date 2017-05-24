@@ -105,12 +105,12 @@ struct TrainingContext {
   cudnnPoolingDescriptor_t poolDesc;
   cudnnActivationDescriptor_t fc1Activation;
 
-  int m_batchSize;
+  int batch_size;
   size_t m_workspaceSize;
   FullyConnectedLayer& ref_fc1, &ref_fc2;
-  TrainingContext(int batch_size, ConvBiasLayer& conv1, MaxPoolLayer& pool1, ConvBiasLayer& conv2, MaxPoolLayer& pool2,
+  TrainingContext(int batch_size_, ConvBiasLayer& conv1, MaxPoolLayer& pool1, ConvBiasLayer& conv2, MaxPoolLayer& pool2,
                   FullyConnectedLayer& fc1, FullyConnectedLayer& fc2) : ref_fc1(fc1), ref_fc2(fc2) {
-    m_batchSize = batch_size;
+    batch_size = batch_size_;
     cublasCreate(&cublasHandle);
     cudnnCreate(&cudnnHandle);
     cudnnCreateTensorDescriptor(&dataTensor);
@@ -166,7 +166,7 @@ struct TrainingContext {
   size_t SetFwdConvolutionTensors(ConvBiasLayer& conv, cudnnTensorDescriptor_t& srcTensorDesc, cudnnTensorDescriptor_t& dstTensorDesc,
                                   cudnnFilterDescriptor_t& filterDesc, cudnnConvolutionDescriptor_t& convDesc, cudnnConvolutionFwdAlgo_t& algo) {
     size_t sizeInBytes = 0;
-    int n = m_batchSize;
+    int n = batch_size;
     int c = conv.in_channels;
     int h = conv.in_height;
     int w = conv.in_width;
@@ -189,11 +189,11 @@ struct TrainingContext {
     cudnnConvolutionForward(cudnnHandle, &alpha, pool1Tensor, pool1, conv2filterDesc, pconv2, conv2Desc, conv2algo, workspace, m_workspaceSize, &beta, conv2Tensor, conv2);
     cudnnAddTensor(cudnnHandle, &alpha, conv2BiasTensor, pconv2bias, &alpha, conv2Tensor, conv2);
     cudnnPoolingForward(cudnnHandle, poolDesc, &alpha, conv2Tensor, conv2, &beta, pool2Tensor, pool2);
-    cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize, ref_fc1.inputs, &alpha, pfc1, ref_fc1.inputs, pool2, ref_fc1.inputs, &beta, fc1, ref_fc1.outputs);
-    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize, 1, &alpha, pfc1bias, ref_fc1.outputs, onevec, 1, &alpha, fc1, ref_fc1.outputs);
+    cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc1.outputs, batch_size, ref_fc1.inputs, &alpha, pfc1, ref_fc1.inputs, pool2, ref_fc1.inputs, &beta, fc1, ref_fc1.outputs);
+    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.outputs, batch_size, 1, &alpha, pfc1bias, ref_fc1.outputs, onevec, 1, &alpha, fc1, ref_fc1.outputs);
     cudnnActivationForward(cudnnHandle, fc1Activation, &alpha, fc1Tensor, fc1, &beta, fc1Tensor, fc1relu);
-    cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize, ref_fc2.inputs, &alpha, pfc2, ref_fc2.inputs, fc1relu, ref_fc2.inputs, &beta, fc2, ref_fc2.outputs);
-    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize, 1, &alpha, pfc2bias, ref_fc2.outputs, onevec, 1, &alpha, fc2, ref_fc2.outputs);
+    cublasSgemm(cublasHandle, CUBLAS_OP_T, CUBLAS_OP_N, ref_fc2.outputs, batch_size, ref_fc2.inputs, &alpha, pfc2, ref_fc2.inputs, fc1relu, ref_fc2.inputs, &beta, fc2, ref_fc2.outputs);
+    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.outputs, batch_size, 1, &alpha, pfc2bias, ref_fc2.outputs, onevec, 1, &alpha, fc2, ref_fc2.outputs);
     cudnnSoftmaxForward(cudnnHandle, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_CHANNEL, &alpha, fc2Tensor, fc2, &beta, fc2Tensor, result);
   }
 
@@ -220,17 +220,17 @@ struct TrainingContext {
                        float *gconv1, float *gconv1bias, float *dpool1, float *gconv2, float *gconv2bias, float *dconv2, float *dpool2,
                        float *gfc1, float *gfc1bias, float *dfc1, float *dfc1relu, float *gfc2, float *gfc2bias, float *dfc2, void *workspace, float *onevec) {
     float alpha = 1.0f, beta = 0.0f;
-    float scalVal = 1.0f / static_cast<float>(m_batchSize);
-    cudaMemcpyAsync(dloss_data, fc2smax, sizeof(float) * m_batchSize * ref_fc2.outputs, cudaMemcpyDeviceToDevice);
-    SoftmaxLossBackprop<<<RoundUp(m_batchSize, BW), BW>>>(labels, ref_fc2.outputs, m_batchSize, dloss_data);
-    cublasSscal(cublasHandle, ref_fc2.outputs * m_batchSize, &scalVal, dloss_data, 1);
-    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc2.inputs, ref_fc2.outputs, m_batchSize, &alpha, fc1relu, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, gfc2, ref_fc2.inputs);
-    cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc2.outputs, m_batchSize, &alpha, dloss_data, ref_fc2.outputs, onevec, 1, &beta, gfc2bias, 1);
-    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.inputs, m_batchSize, ref_fc2.outputs, &alpha, pfc2, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, dfc2, ref_fc2.inputs);
+    float scalVal = 1.0f / static_cast<float>(batch_size);
+    cudaMemcpyAsync(dloss_data, fc2smax, sizeof(float) * batch_size * ref_fc2.outputs, cudaMemcpyDeviceToDevice);
+    SoftmaxLossBackprop<<<RoundUp(batch_size, BW), BW>>>(labels, ref_fc2.outputs, batch_size, dloss_data);
+    cublasSscal(cublasHandle, ref_fc2.outputs * batch_size, &scalVal, dloss_data, 1);
+    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc2.inputs, ref_fc2.outputs, batch_size, &alpha, fc1relu, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, gfc2, ref_fc2.inputs);
+    cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc2.outputs, batch_size, &alpha, dloss_data, ref_fc2.outputs, onevec, 1, &beta, gfc2bias, 1);
+    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc2.inputs, batch_size, ref_fc2.outputs, &alpha, pfc2, ref_fc2.inputs, dloss_data, ref_fc2.outputs, &beta, dfc2, ref_fc2.inputs);
     cudnnActivationBackward(cudnnHandle, fc1Activation, &alpha, fc1Tensor, fc1relu, fc1Tensor, dfc2, fc1Tensor, fc1, &beta, fc1Tensor, dfc1relu);
-    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc1.inputs, ref_fc1.outputs, m_batchSize, &alpha, pool2, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, gfc1, ref_fc1.inputs);
-    cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc1.outputs, m_batchSize, &alpha, dfc1relu, ref_fc1.outputs, onevec, 1, &beta, gfc1bias, 1);
-    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.inputs, m_batchSize, ref_fc1.outputs, &alpha, pfc1, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, dfc1, ref_fc1.inputs);
+    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_T, ref_fc1.inputs, ref_fc1.outputs, batch_size, &alpha, pool2, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, gfc1, ref_fc1.inputs);
+    cublasSgemv(cublasHandle, CUBLAS_OP_N, ref_fc1.outputs, batch_size, &alpha, dfc1relu, ref_fc1.outputs, onevec, 1, &beta, gfc1bias, 1);
+    cublasSgemm(cublasHandle, CUBLAS_OP_N, CUBLAS_OP_N, ref_fc1.inputs, batch_size, ref_fc1.outputs, &alpha, pfc1, ref_fc1.inputs, dfc1relu, ref_fc1.outputs, &beta, dfc1, ref_fc1.inputs);
     cudnnPoolingBackward(cudnnHandle, poolDesc, &alpha, pool2Tensor, pool2, pool2Tensor, dfc1, conv2Tensor, conv2, &beta, conv2Tensor, dpool2);
     cudnnConvolutionBackwardBias(cudnnHandle, &alpha, conv2Tensor, dpool2, &beta, conv2BiasTensor, gconv2bias);
     cudnnConvolutionBackwardFilter(cudnnHandle, &alpha, pool1Tensor, pool1, conv2Tensor, dpool2, conv2Desc, conv2bwfalgo, workspace, m_workspaceSize, &beta, conv2filterDesc, gconv2);
@@ -296,16 +296,16 @@ int main(int argc, char **argv) {
     fc2.pbias[i] = drand48() * wfc2 * 2 - wfc2;
 
   float *d_data, *d_labels, *d_conv1, *d_pool1, *d_conv2, *d_pool2, *d_fc1, *d_fc1relu, *d_fc2, *d_fc2smax;
-  cudaMalloc(&d_data,    sizeof(float) * context.m_batchSize * 1                  * height                            * width);
-  cudaMalloc(&d_labels,  sizeof(float) * context.m_batchSize * 1                  * 1                                 * 1);
-  cudaMalloc(&d_conv1,   sizeof(float) * context.m_batchSize * conv1.out_channels * conv1.out_height                  * conv1.out_width);
-  cudaMalloc(&d_pool1,   sizeof(float) * context.m_batchSize * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
-  cudaMalloc(&d_conv2,   sizeof(float) * context.m_batchSize * conv2.out_channels * conv2.out_height                  * conv2.out_width);
-  cudaMalloc(&d_pool2,   sizeof(float) * context.m_batchSize * conv2.out_channels * (conv2.out_height / pool2.stride) * (conv2.out_width / pool2.stride));
-  cudaMalloc(&d_fc1,     sizeof(float) * context.m_batchSize * fc1.outputs);
-  cudaMalloc(&d_fc1relu, sizeof(float) * context.m_batchSize * fc1.outputs);
-  cudaMalloc(&d_fc2,     sizeof(float) * context.m_batchSize * fc2.outputs);
-  cudaMalloc(&d_fc2smax, sizeof(float) * context.m_batchSize * fc2.outputs);
+  cudaMalloc(&d_data,    sizeof(float) * context.batch_size * 1                  * height                            * width);
+  cudaMalloc(&d_labels,  sizeof(float) * context.batch_size * 1                  * 1                                 * 1);
+  cudaMalloc(&d_conv1,   sizeof(float) * context.batch_size * conv1.out_channels * conv1.out_height                  * conv1.out_width);
+  cudaMalloc(&d_pool1,   sizeof(float) * context.batch_size * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
+  cudaMalloc(&d_conv2,   sizeof(float) * context.batch_size * conv2.out_channels * conv2.out_height                  * conv2.out_width);
+  cudaMalloc(&d_pool2,   sizeof(float) * context.batch_size * conv2.out_channels * (conv2.out_height / pool2.stride) * (conv2.out_width / pool2.stride));
+  cudaMalloc(&d_fc1,     sizeof(float) * context.batch_size * fc1.outputs);
+  cudaMalloc(&d_fc1relu, sizeof(float) * context.batch_size * fc1.outputs);
+  cudaMalloc(&d_fc2,     sizeof(float) * context.batch_size * fc2.outputs);
+  cudaMalloc(&d_fc2smax, sizeof(float) * context.batch_size * fc2.outputs);
 
   float *d_pconv1, *d_pconv1bias, *d_pconv2, *d_pconv2bias;
   float *d_pfc1, *d_pfc1bias, *d_pfc2, *d_pfc2bias;
@@ -330,18 +330,18 @@ int main(int argc, char **argv) {
   cudaMalloc(&d_gfc2bias,   sizeof(float) * fc2.pbias.size());
 
   float *d_dpool1, *d_dpool2, *d_dconv2, *d_dfc1, *d_dfc1relu, *d_dfc2, *d_dfc2smax, *d_dlossdata;
-  cudaMalloc(&d_dpool1,   sizeof(float) * context.m_batchSize * conv1.out_channels * conv1.out_height                  * conv1.out_width);
-  cudaMalloc(&d_dpool2,   sizeof(float) * context.m_batchSize * conv2.out_channels * conv2.out_height                  * conv2.out_width);
-  cudaMalloc(&d_dconv2,   sizeof(float) * context.m_batchSize * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
-  cudaMalloc(&d_dfc1,     sizeof(float) * context.m_batchSize * fc1.inputs);
-  cudaMalloc(&d_dfc1relu, sizeof(float) * context.m_batchSize * fc1.outputs);
-  cudaMalloc(&d_dfc2,     sizeof(float) * context.m_batchSize * fc2.inputs);
-  cudaMalloc(&d_dfc2smax, sizeof(float) * context.m_batchSize * fc2.outputs);
-  cudaMalloc(&d_dlossdata,sizeof(float) * context.m_batchSize * fc2.outputs);
+  cudaMalloc(&d_dpool1,   sizeof(float) * context.batch_size * conv1.out_channels * conv1.out_height                  * conv1.out_width);
+  cudaMalloc(&d_dpool2,   sizeof(float) * context.batch_size * conv2.out_channels * conv2.out_height                  * conv2.out_width);
+  cudaMalloc(&d_dconv2,   sizeof(float) * context.batch_size * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
+  cudaMalloc(&d_dfc1,     sizeof(float) * context.batch_size * fc1.inputs);
+  cudaMalloc(&d_dfc1relu, sizeof(float) * context.batch_size * fc1.outputs);
+  cudaMalloc(&d_dfc2,     sizeof(float) * context.batch_size * fc2.inputs);
+  cudaMalloc(&d_dfc2smax, sizeof(float) * context.batch_size * fc2.outputs);
+  cudaMalloc(&d_dlossdata,sizeof(float) * context.batch_size * fc2.outputs);
 
   float *d_onevec;
   void *d_cudnn_workspace = NULL;
-  cudaMalloc(&d_onevec, sizeof(float)* context.m_batchSize);
+  cudaMalloc(&d_onevec, sizeof(float)* context.batch_size);
   cudaMalloc(&d_cudnn_workspace, context.m_workspaceSize);
   cudaMemcpyAsync(d_pconv1, &conv1.pconv[0],     sizeof(float) * conv1.pconv.size(),  cudaMemcpyHostToDevice);
   cudaMemcpyAsync(d_pconv1bias, &conv1.pbias[0], sizeof(float) * conv1.pbias.size(),  cudaMemcpyHostToDevice);
@@ -352,7 +352,7 @@ int main(int argc, char **argv) {
   cudaMemcpyAsync(d_pfc2, &fc2.pneurons[0],      sizeof(float) * fc2.pneurons.size(), cudaMemcpyHostToDevice);
   cudaMemcpyAsync(d_pfc2bias, &fc2.pbias[0],     sizeof(float) * fc2.pbias.size(),    cudaMemcpyHostToDevice);
 
-  FillOnes<<<RoundUp(context.m_batchSize, BW), BW>>>(d_onevec, context.m_batchSize);
+  FillOnes<<<RoundUp(context.batch_size, BW), BW>>>(d_onevec, context.batch_size);
 
   printf("Preparing dataset\n");
   std::vector<float> train_images_float(train_images.size()), train_labels_float(train_labels.size());
@@ -365,9 +365,9 @@ int main(int argc, char **argv) {
   cudaDeviceSynchronize();
   double t1 = get_time();
   for (int iter=0; iter<iterations; iter++) {
-    int imageid = iter % (train_labels.size() / context.m_batchSize);
-    cudaMemcpyAsync(d_data, &train_images_float[imageid * context.m_batchSize * width*height], sizeof(float) * context.m_batchSize * width * height, cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.m_batchSize], sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice);
+    int imageid = iter % (train_labels.size() / context.batch_size);
+    cudaMemcpyAsync(d_data, &train_images_float[imageid * context.batch_size * width*height], sizeof(float) * context.batch_size * width * height, cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.batch_size], sizeof(float) * context.batch_size, cudaMemcpyHostToDevice);
     context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias,
                                d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
     context.Backpropagation(conv1, pool1, conv2, pool2, d_data, d_labels, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_dlossdata,
