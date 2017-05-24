@@ -23,24 +23,25 @@ double get_time() {
   return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
 }
 
-size_t readImages(const char *filename, uint8_t *data, int width, int height) {
+void readImages(const char *filename, std::vector<uint8_t> &data, int &width, int &height) {
   uint32_t image[4];
   FILE * fid = fopen(filename, "r");
   size_t size = fread(&image, sizeof(uint32_t), 4, fid);
   uint32_t nimage = __builtin_bswap32(image[1]);
   height = __builtin_bswap32(image[2]);
   width = __builtin_bswap32(image[3]);
-  size = fread(data, sizeof(uint8_t), nimage * width * height, fid);
+  data.resize(nimage * width * height);
+  size = fread(&data[0], sizeof(uint8_t), nimage * width * height, fid);
   fclose(fid);
-  return nimage;
 }
 
-void readLabels(const char *filename, uint8_t *labels) {
+void readLabels(const char *filename, std::vector<uint8_t> &labels) {
   uint32_t label[2];
   FILE * fid = fopen(filename, "r");
   size_t size = fread(&label, sizeof(uint32_t), 2, fid);
   uint32_t nlabel = __builtin_bswap32(label[1]);
-  size = fread(labels, sizeof(uint8_t), nlabel, fid);
+  labels.resize(nlabel);
+  size = fread(&labels[0], sizeof(uint8_t), nlabel, fid);
   fclose(fid);
 }
 
@@ -54,15 +55,15 @@ struct ConvBiasLayer {
   int in_channels, out_channels, kernel_size;
   int in_width, in_height, out_width, out_height;
   std::vector<float> pconv, pbias;
-  ConvBiasLayer(int in_channels_, int out_channels_, int kernel_size_, int in_w_, int in_h_) :
+  ConvBiasLayer(int in_channels_, int out_channels_, int kernel_size_, int in_width_, int in_height_) :
     pconv(in_channels_ * kernel_size_ * kernel_size_ * out_channels_), pbias(out_channels_) {
     in_channels = in_channels_;
     out_channels = out_channels_;
     kernel_size = kernel_size_;
-    in_width = in_w_;
-    in_height = in_h_;
-    out_width = in_w_ - kernel_size_ + 1;
-    out_height = in_h_ - kernel_size_ + 1;
+    in_width = in_width_;
+    in_height = in_height_;
+    out_width = in_width_ - kernel_size_ + 1;
+    out_height = in_height_ - kernel_size_ + 1;
   }
 };
 
@@ -262,13 +263,11 @@ int main(int argc, char **argv) {
   double learning_rate = 0.01;
   double lr_gamma = 0.0001;
   double lr_power = -0.75;
-  int width = 28, height = 28;
-  int train_size = 60000;
-  int test_size = 10000;
+  int width, height;
   printf("Reading input data\n");
-  std::vector<uint8_t> train_images(train_size * width * height), train_labels(train_size);
-  train_size = readImages("train-images-idx3-ubyte", &train_images[0], width, height);
-  readLabels("train-labels-idx1-ubyte", &train_labels[0]);
+  std::vector<uint8_t> train_images, train_labels;
+  readImages("train-images-idx3-ubyte", train_images, width, height);
+  readLabels("train-labels-idx1-ubyte", train_labels);
 
   ConvBiasLayer conv1(1, 20, 5, (int)width, (int)height);
   MaxPoolLayer pool1(2, 2);
@@ -278,34 +277,26 @@ int main(int argc, char **argv) {
   FullyConnectedLayer fc2(fc1.outputs, 10);
   TrainingContext context(batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
 
-  std::random_device rd;
-  std::mt19937 gen(rd());
-
   float wconv1 = sqrt(3.0f / (conv1.kernel_size * conv1.kernel_size * conv1.in_channels));
-  std::uniform_real_distribution<> dconv1(-wconv1, wconv1);
   float wconv2 = sqrt(3.0f / (conv2.kernel_size * conv2.kernel_size * conv2.in_channels));
-  std::uniform_real_distribution<> dconv2(-wconv2, wconv2);
   float wfc1 = sqrt(3.0f / (fc1.inputs * fc1.outputs));
-  std::uniform_real_distribution<> dfc1(-wfc1, wfc1);
   float wfc2 = sqrt(3.0f / (fc2.inputs * fc2.outputs));
-  std::uniform_real_distribution<> dfc2(-wfc2, wfc2);
-
-  for (auto&& iter : conv1.pconv)
-    iter = static_cast<float>(dconv1(gen));
-  for (auto&& iter : conv1.pbias)
-    iter = static_cast<float>(dconv1(gen));
-  for (auto&& iter : conv2.pconv)
-    iter = static_cast<float>(dconv2(gen));
-  for (auto&& iter : conv2.pbias)
-    iter = static_cast<float>(dconv2(gen));
-  for (auto&& iter : fc1.pneurons)
-    iter = static_cast<float>(dfc1(gen));
-  for (auto&& iter : fc1.pbias)
-    iter = static_cast<float>(dfc1(gen));
-  for (auto&& iter : fc2.pneurons)
-    iter = static_cast<float>(dfc2(gen));
-  for (auto&& iter : fc2.pbias)
-    iter = static_cast<float>(dfc2(gen));
+  for (int i=0; i<conv1.pconv.size(); i++)
+    conv1.pconv[i] = drand48() * wconv1 * 2 - wconv1;
+  for (int i=0; i<conv1.pbias.size(); i++)
+    conv1.pbias[i] = drand48() * wconv1 * 2 - wconv1;
+  for (int i=0; i<conv2.pconv.size(); i++)
+    conv2.pconv[i] = drand48() * wconv2 * 2 - wconv2;
+  for (int i=0; i<conv2.pbias.size(); i++)
+    conv2.pbias[i] = drand48() * wconv2 * 2 - wconv2;
+  for (int i=0; i<fc1.pneurons.size(); i++)
+    fc1.pneurons[i] = drand48() * wfc1 * 2 - wfc1;
+  for (int i=0; i<fc1.pbias.size(); i++)
+    fc1.pbias[i] = drand48() * wfc1 * 2 - wfc1;
+  for (int i=0; i<fc2.pneurons.size(); i++)
+    fc2.pneurons[i] = drand48() * wfc2 * 2 - wfc2;
+  for (int i=0; i<fc2.pbias.size(); i++)
+    fc2.pbias[i] = drand48() * wfc2 * 2 - wfc2;
 
   float *d_data, *d_labels, *d_conv1, *d_pool1, *d_conv2, *d_pool2, *d_fc1, *d_fc1relu, *d_fc2, *d_fc2smax;
   cudaMalloc(&d_data,    sizeof(float) * context.m_batchSize * 1                  * height                            * width);
@@ -367,17 +358,17 @@ int main(int argc, char **argv) {
   FillOnes<<<RoundUp(context.m_batchSize, BW), BW>>>(d_onevec, context.m_batchSize);
 
   printf("Preparing dataset\n");
-  std::vector<float> train_images_float(train_images.size()), train_labels_float(train_size);
-  for (size_t i=0; i<train_size * width * height; i++)
+  std::vector<float> train_images_float(train_images.size()), train_labels_float(train_labels.size());
+  for (size_t i=0; i<train_images.size(); i++)
     train_images_float[i] = (float)train_images[i] / 255.0f;
-  for (size_t i=0; i<train_size; i++)
+  for (size_t i=0; i<train_labels.size(); i++)
     train_labels_float[i] = (float)train_labels[i];
 
   printf("Training...\n");
   cudaDeviceSynchronize();
   double t1 = get_time();
   for (int iter=0; iter<iterations; iter++) {
-    int imageid = iter % (train_size / context.m_batchSize);
+    int imageid = iter % (train_labels.size() / context.m_batchSize);
     cudaMemcpyAsync(d_data, &train_images_float[imageid * context.m_batchSize * width*height], sizeof(float) * context.m_batchSize * width * height, cudaMemcpyHostToDevice);
     cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.m_batchSize], sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice);
     context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias,
@@ -395,19 +386,18 @@ int main(int argc, char **argv) {
   double t2 = get_time();
   printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / iterations);
 
-  std::vector<uint8_t> test_images(test_size * width * height), test_labels(test_size);
-  test_size = readImages("t10k-images-idx3-ubyte", &test_images[0], width, height);
-  readLabels("t10k-labels-idx1-ubyte", &test_labels[0]);
+  std::vector<uint8_t> test_images, test_labels;
+  readImages("t10k-images-idx3-ubyte", test_images, width, height);
+  readLabels("t10k-labels-idx1-ubyte", test_labels);
   float classification_error = 1.0f;
   int num_errors = 0;
-  for (int i=0; i<test_size; i++) {
+  for (int i=0; i<test_labels.size(); i++) {
     std::vector<float> data(width * height);
     for (int j=0; j<width*height; j++)
       data[j] = (float)test_images[i*width*height+j] / 255.0f;
     cudaMemcpyAsync(d_data, &data[0], sizeof(float) * width * height, cudaMemcpyHostToDevice);
-    context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
-                               d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias,
-                               d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
+    context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias,
+                               d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
     std::vector<float> class_vec(10);
     cudaMemcpy(&class_vec[0], d_fc2smax, sizeof(float) * 10, cudaMemcpyDeviceToHost);
     int chosen = 0;
@@ -417,8 +407,8 @@ int main(int argc, char **argv) {
     if (chosen != test_labels[i])
       num_errors++;
   }
-  classification_error = (float)num_errors / (float)test_size;
-  printf("Classification result: %.2f%% error (used %d images)\n", classification_error * 100.0f, (int)test_size);
+  classification_error = (float)num_errors / (float)test_labels.size();
+  printf("Classification result: %.2f%% error (used %d images)\n", classification_error * 100.0f, (int)test_labels.size());
 
   cudaFree(d_data);
   cudaFree(d_conv1);
