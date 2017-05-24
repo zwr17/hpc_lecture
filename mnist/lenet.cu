@@ -69,12 +69,6 @@ size_t ReadUByteDataset(const char *image_filename, const char *label_filename, 
 
 #define BW 128
 
-#define DEFINE_int32(flag, default_value, description) const int FLAGS_##flag = (default_value)
-#define DEFINE_uint64(flag, default_value, description) const unsigned long long FLAGS_##flag = (default_value)
-#define DEFINE_bool(flag, default_value, description) const bool FLAGS_##flag = (default_value)
-#define DEFINE_double(flag, default_value, description) const double FLAGS_##flag = (default_value)
-#define DEFINE_string(flag, default_value, description) const std::string FLAGS_##flag ((default_value))
-
 static inline unsigned int RoundUp(unsigned int nominator, unsigned int denominator) {
   return (nominator + denominator - 1) / denominator;
 }
@@ -103,15 +97,6 @@ static inline unsigned int RoundUp(unsigned int nominator, unsigned int denomina
       FatalError(_error.str());                                        \
     }                                                                  \
 } while(0)
-
-
-DEFINE_int32(gpu, 0, "The GPU ID to use");
-DEFINE_int32(iterations, 1000, "Number of iterations for training");
-DEFINE_int32(random_seed, -1, "Override random seed (default uses std::random_device)");
-DEFINE_uint64(batch_size, 64, "Batch size for training");
-DEFINE_double(learning_rate, 0.01, "Base learning rate");
-DEFINE_double(lr_gamma, 0.0001, "Learning rate policy gamma");
-DEFINE_double(lr_power, 0.75, "Learning rate policy power");
 
 struct ConvBiasLayer {
   int in_channels, out_channels, kernel_size;
@@ -326,6 +311,12 @@ struct TrainingContext {
 };
 
 int main(int argc, char **argv) {
+  int gpu_id = 0;
+  int iterations = 1000;
+  int batch_size = 64;
+  double learning_rate = 0.01;
+  double lr_gamma = 0.0001;
+  double lr_power = -0.75;
   size_t width, height, channels = 1;
   printf("Reading input data\n");
   size_t train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", NULL, NULL, width, height);
@@ -335,7 +326,7 @@ int main(int argc, char **argv) {
   train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
   test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", &test_images[0], &test_labels[0], width, height);
   printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
-  printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
+  printf("Batch size: %d, iterations: %d\n", batch_size, iterations);
 
   ConvBiasLayer conv1((int)channels, 20, 5, (int)width, (int)height);
   MaxPoolLayer pool1(2, 2);
@@ -343,10 +334,10 @@ int main(int argc, char **argv) {
   MaxPoolLayer pool2(2, 2);
   FullyConnectedLayer fc1((conv2.out_channels*conv2.out_width*conv2.out_height) / (pool2.stride * pool2.stride), 500);
   FullyConnectedLayer fc2(fc1.outputs, 10);
-  TrainingContext context(FLAGS_gpu, FLAGS_batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
+  TrainingContext context(gpu_id, batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
 
   std::random_device rd;
-  std::mt19937 gen(FLAGS_random_seed < 0 ? rd() : static_cast<unsigned int>(FLAGS_random_seed));
+  std::mt19937 gen(rd());
 
   float wconv1 = sqrt(3.0f / (conv1.kernel_size * conv1.kernel_size * conv1.in_channels));
   std::uniform_real_distribution<> dconv1(-wconv1, wconv1);
@@ -445,7 +436,7 @@ int main(int argc, char **argv) {
   printf("Training...\n");
   checkCudaErrors(cudaDeviceSynchronize());
   double t1 = get_time();
-  for (int iter=0; iter<FLAGS_iterations; iter++) {
+  for (int iter=0; iter<iterations; iter++) {
     int imageid = iter % (train_size / context.m_batchSize);
     checkCudaErrors(cudaMemcpyAsync(d_data, &train_images_float[imageid * context.m_batchSize * width*height*channels], sizeof(float) * context.m_batchSize * channels * width * height, cudaMemcpyHostToDevice));
     checkCudaErrors(cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.m_batchSize], sizeof(float) * context.m_batchSize, cudaMemcpyHostToDevice));
@@ -455,17 +446,17 @@ int main(int argc, char **argv) {
                             d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
                             d_gconv1, d_gconv1bias, d_dpool1, d_gconv2, d_gconv2bias, d_dconv2, d_dpool2, d_gfc1, d_gfc1bias,
                             d_dfc1, d_dfc1relu, d_gfc2, d_gfc2bias, d_dfc2, d_cudnn_workspace, d_onevec);
-    float learningRate = static_cast<float>(FLAGS_learning_rate * pow((1.0 + FLAGS_lr_gamma * iter), (-FLAGS_lr_power)));
+    float learningRate = static_cast<float>(learning_rate * pow((1.0 + lr_gamma * iter), lr_power));
     context.UpdateWeights(learningRate, conv1, conv2,
                           d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias,
                           d_gconv1, d_gconv1bias, d_gconv2, d_gconv2bias, d_gfc1, d_gfc1bias, d_gfc2, d_gfc2bias);
   }
   checkCudaErrors(cudaDeviceSynchronize());
   double t2 = get_time();
-  printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / FLAGS_iterations);
+  printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / iterations);
 
   float classification_error = 1.0f;
-  TrainingContext test_context(FLAGS_gpu, 1, conv1, pool1, conv2, pool2, fc1, fc2);
+  TrainingContext test_context(gpu_id, 1, conv1, pool1, conv2, pool2, fc1, fc2);
   if (context.m_workspaceSize < test_context.m_workspaceSize) {
     checkCudaErrors(cudaFree(d_cudnn_workspace));
     checkCudaErrors(cudaMalloc(&d_cudnn_workspace, test_context.m_workspaceSize));
