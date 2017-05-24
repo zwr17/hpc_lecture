@@ -23,44 +23,22 @@ double get_time() {
   return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
 }
 
-#define bswap(x) __builtin_bswap32(x)
-
-struct UByteImageDataset {
-  uint32_t magic;
-  uint32_t length;
-  uint32_t height;
-  uint32_t width;
-  void Swap() {
-    magic = bswap(magic);
-    length = bswap(length);
-    height = bswap(height);
-    width = bswap(width);
-  }
-};
-
-struct UByteLabelDataset {
-  uint32_t magic;
-  uint32_t length;
-  void Swap() {
-    magic = bswap(magic);
-    length = bswap(length);
-  }
-};
-
 size_t ReadUByteDataset(const char *image_filename, const char *label_filename, uint8_t *data, uint8_t *labels, int width, int height) {
-  UByteImageDataset image_header;
-  UByteLabelDataset label_header;
-  FILE * imfp = fopen(image_filename, "r");
-  FILE * lbfp = fopen(label_filename, "r");
-  size_t size = fread(&image_header, sizeof(UByteImageDataset), 1, imfp);
-  size = fread(&label_header, sizeof(UByteLabelDataset), 1, lbfp);
-  image_header.Swap();
-  label_header.Swap();
-  size = fread(data, sizeof(uint8_t), image_header.length * width * height, imfp);
-  size = fread(labels, sizeof(uint8_t), label_header.length, lbfp);
-  fclose(imfp);
-  fclose(lbfp);
-  return image_header.length;
+  uint32_t image[4];
+  uint32_t label[2];
+  FILE * image_file = fopen(image_filename, "r");
+  FILE * label_file = fopen(label_filename, "r");
+  size_t size = fread(&image, sizeof(uint32_t), 4, image_file);
+  size = fread(&label, sizeof(uint32_t), 2, label_file);
+  uint32_t nimage = __builtin_bswap32(image[1]);
+  height = __builtin_bswap32(image[2]);
+  width = __builtin_bswap32(image[3]);
+  uint32_t nlabel = __builtin_bswap32(label[1]);
+  size = fread(data, sizeof(uint8_t), nimage * width * height, image_file);
+  size = fread(labels, sizeof(uint8_t), nlabel, label_file);
+  fclose(image_file);
+  fclose(label_file);
+  return nimage;
 }
 
 #define BW 128
