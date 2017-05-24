@@ -107,7 +107,6 @@ static inline unsigned int RoundUp(unsigned int nominator, unsigned int denomina
 DEFINE_int32(gpu, 0, "The GPU ID to use");
 DEFINE_int32(iterations, 1000, "Number of iterations for training");
 DEFINE_int32(random_seed, -1, "Override random seed (default uses std::random_device)");
-DEFINE_int32(classify, -1, "Number of images to classify to compute error rate (default uses entire test set)");
 DEFINE_uint64(batch_size, 64, "Batch size for training");
 DEFINE_string(train_images, "train-images-idx3-ubyte", "Training images filename");
 DEFINE_string(train_labels, "train-labels-idx1-ubyte", "Training labels filename");
@@ -430,12 +429,12 @@ struct TrainingContext {
 int main(int argc, char **argv) {
   size_t width, height, channels = 1;
   printf("Reading input data\n");
-  size_t train_size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), NULL, NULL, width, height);
-  size_t test_size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), NULL, NULL, width, height);
+  size_t train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", NULL, NULL, width, height);
+  size_t test_size = ReadUByteDataset("t10k-images-idx3-ubyte", FLAGS_test_labels.c_str(), NULL, NULL, width, height);
   std::vector<uint8_t> train_images(train_size * width * height * channels), train_labels(train_size);
   std::vector<uint8_t> test_images(test_size * width * height * channels), test_labels(test_size);
-  size_t size = ReadUByteDataset(FLAGS_train_images.c_str(), FLAGS_train_labels.c_str(), &train_images[0], &train_labels[0], width, height);
-  size = ReadUByteDataset(FLAGS_test_images.c_str(), FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height);
+  size_t size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
+  size = ReadUByteDataset("t10k-images-idx3-ubyte", FLAGS_test_labels.c_str(), &test_images[0], &test_labels[0], width, height);
   printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
   printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
 
@@ -571,36 +570,31 @@ int main(int argc, char **argv) {
   printf("Iteration time: %f ms\n", std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / 1000.0f / FLAGS_iterations);
 
   float classification_error = 1.0f;
-  int classifications = FLAGS_classify;
-  if (classifications < 0)
-    classifications = (int)test_size;
-  if (classifications > 0) {
-    TrainingContext test_context(FLAGS_gpu, 1, conv1, pool1, conv2, pool2, fc1, fc2);
-    if (context.m_workspaceSize < test_context.m_workspaceSize) {
-      checkCudaErrors(cudaFree(d_cudnn_workspace));
-      checkCudaErrors(cudaMalloc(&d_cudnn_workspace, test_context.m_workspaceSize));
-    }
-    int num_errors = 0;
-    for (int i = 0; i < classifications; ++i) {
-      std::vector<float> data(width * height);
-      for (int j = 0; j < width * height; ++j)
-        data[j] = (float)test_images[i * width*height*channels + j] / 255.0f;
-      checkCudaErrors(cudaMemcpyAsync(d_data, &data[0], sizeof(float) * width * height, cudaMemcpyHostToDevice));
-      test_context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
-                                      d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias,
-                                      d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
-      std::vector<float> class_vec(10);
-      checkCudaErrors(cudaMemcpy(&class_vec[0], d_fc2smax, sizeof(float) * 10, cudaMemcpyDeviceToHost));
-      int chosen = 0;
-      for (int id = 1; id < 10; ++id) {
-        if (class_vec[chosen] < class_vec[id]) chosen = id;
-      }
-      if (chosen != test_labels[i])
-        ++num_errors;
-    }
-    classification_error = (float)num_errors / (float)classifications;
-    printf("Classification result: %.2f%% error (used %d images)\n", classification_error * 100.0f, (int)classifications);
+  TrainingContext test_context(FLAGS_gpu, 1, conv1, pool1, conv2, pool2, fc1, fc2);
+  if (context.m_workspaceSize < test_context.m_workspaceSize) {
+    checkCudaErrors(cudaFree(d_cudnn_workspace));
+    checkCudaErrors(cudaMalloc(&d_cudnn_workspace, test_context.m_workspaceSize));
   }
+  int num_errors = 0;
+  for (int i=0; i<test_size; i++) {
+    std::vector<float> data(width * height);
+    for (int j = 0; j < width * height; ++j)
+      data[j] = (float)test_images[i * width*height*channels + j] / 255.0f;
+    checkCudaErrors(cudaMemcpyAsync(d_data, &data[0], sizeof(float) * width * height, cudaMemcpyHostToDevice));
+    test_context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax,
+                                    d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias, d_pfc1, d_pfc1bias,
+                                    d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
+    std::vector<float> class_vec(10);
+    checkCudaErrors(cudaMemcpy(&class_vec[0], d_fc2smax, sizeof(float) * 10, cudaMemcpyDeviceToHost));
+    int chosen = 0;
+    for (int id = 1; id < 10; ++id) {
+      if (class_vec[chosen] < class_vec[id]) chosen = id;
+    }
+    if (chosen != test_labels[i])
+      ++num_errors;
+  }
+  classification_error = (float)num_errors / (float)test_size;
+  printf("Classification result: %.2f%% error (used %d images)\n", classification_error * 100.0f, (int)test_size);
 
   checkCudaErrors(cudaFree(d_data));
   checkCudaErrors(cudaFree(d_conv1));
