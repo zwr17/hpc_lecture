@@ -4,10 +4,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
-
 #include <iostream>
-//#include <random>
 #include <sstream>
+#include <stdint.h>
 #include <string>
 #include <sys/time.h>
 #include <vector>
@@ -109,8 +108,6 @@ struct TrainingContext {
   int m_batchSize;
   size_t m_workspaceSize;
   FullyConnectedLayer& ref_fc1, &ref_fc2;
-  TrainingContext& operator=(const TrainingContext&) = delete;
-  TrainingContext(const TrainingContext&) = delete;
   TrainingContext(int batch_size, ConvBiasLayer& conv1, MaxPoolLayer& pool1, ConvBiasLayer& conv2, MaxPoolLayer& pool2,
                   FullyConnectedLayer& fc1, FullyConnectedLayer& fc2) : ref_fc1(fc1), ref_fc2(fc2) {
     m_batchSize = batch_size;
