@@ -104,231 +104,61 @@ static inline unsigned int RoundUp(unsigned int nominator, unsigned int denomina
 } while(0)
 
 
-///////////////////////////////////////////////////////////////////////////////////////////
-// Command-line flags
-
-// Application parameters
 DEFINE_int32(gpu, 0, "The GPU ID to use");
 DEFINE_int32(iterations, 1000, "Number of iterations for training");
 DEFINE_int32(random_seed, -1, "Override random seed (default uses std::random_device)");
 DEFINE_int32(classify, -1, "Number of images to classify to compute error rate (default uses entire test set)");
-
-// Batch parameters
 DEFINE_uint64(batch_size, 64, "Batch size for training");
-
-// Filenames
-DEFINE_bool(pretrained, false, "Use the pretrained CUDNN model as input");
-DEFINE_bool(save_data, false, "Save pretrained weights to file");
 DEFINE_string(train_images, "train-images-idx3-ubyte", "Training images filename");
 DEFINE_string(train_labels, "train-labels-idx1-ubyte", "Training labels filename");
 DEFINE_string(test_images, "t10k-images-idx3-ubyte", "Test images filename");
 DEFINE_string(test_labels, "t10k-labels-idx1-ubyte", "Test labels filename");
-
-// Solver parameters
 DEFINE_double(learning_rate, 0.01, "Base learning rate");
 DEFINE_double(lr_gamma, 0.0001, "Learning rate policy gamma");
 DEFINE_double(lr_power, 0.75, "Learning rate policy power");
 
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// Layer representations
-
-/**
- * Represents a convolutional layer with bias.
- */
-struct ConvBiasLayer
-{
-    int in_channels, out_channels, kernel_size;
-    int in_width, in_height, out_width, out_height;
-
-    std::vector<float> pconv, pbias;
-
-    ConvBiasLayer(int in_channels_, int out_channels_, int kernel_size_,
-                  int in_w_, int in_h_) : pconv(in_channels_ * kernel_size_ * kernel_size_ * out_channels_),
-                  pbias(out_channels_)
-    {
-        in_channels = in_channels_;
-        out_channels = out_channels_;
-        kernel_size = kernel_size_;
-        in_width = in_w_;
-        in_height = in_h_;
-        out_width = in_w_ - kernel_size_ + 1;
-        out_height = in_h_ - kernel_size_ + 1;
-    }
-
-    bool FromFile(const char *fileprefix)
-    {
-        std::stringstream ssf, ssbf;
-        ssf << fileprefix << ".bin";
-        ssbf << fileprefix << ".bias.bin";
-
-        // Read weights file
-        FILE *fp = fopen(ssf.str().c_str(), "rb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssf.str().c_str());
-            return false;
-        }
-        size_t size = fread(&pconv[0], sizeof(float), in_channels * out_channels * kernel_size * kernel_size, fp);
-        fclose(fp);
-
-        // Read bias file
-        fp = fopen(ssbf.str().c_str(), "rb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssbf.str().c_str());
-            return false;
-        }
-        size = fread(&pbias[0], sizeof(float), out_channels, fp);
-        fclose(fp);
-        return true;
-    }
-
-    void ToFile(const char *fileprefix)
-    {
-        std::stringstream ssf, ssbf;
-        ssf << fileprefix << ".bin";
-        ssbf << fileprefix << ".bias.bin";
-
-        // Write weights file
-        FILE *fp = fopen(ssf.str().c_str(), "wb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssf.str().c_str());
-            exit(2);
-        }
-        fwrite(&pconv[0], sizeof(float), in_channels * out_channels * kernel_size * kernel_size, fp);
-        fclose(fp);
-
-        // Write bias file
-        fp = fopen(ssbf.str().c_str(), "wb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssbf.str().c_str());
-            exit(2);
-        }
-        fwrite(&pbias[0], sizeof(float), out_channels, fp);
-        fclose(fp);
-    }
+struct ConvBiasLayer {
+  int in_channels, out_channels, kernel_size;
+  int in_width, in_height, out_width, out_height;
+  std::vector<float> pconv, pbias;
+  ConvBiasLayer(int in_channels_, int out_channels_, int kernel_size_, int in_w_, int in_h_) :
+    pconv(in_channels_ * kernel_size_ * kernel_size_ * out_channels_), pbias(out_channels_) {
+    in_channels = in_channels_;
+    out_channels = out_channels_;
+    kernel_size = kernel_size_;
+    in_width = in_w_;
+    in_height = in_h_;
+    out_width = in_w_ - kernel_size_ + 1;
+    out_height = in_h_ - kernel_size_ + 1;
+  }
 };
 
-/**
- * Represents a max-pooling layer.
- */
-struct MaxPoolLayer
-{
-    int size, stride;
-    MaxPoolLayer(int size_, int stride_) : size(size_), stride(stride_) {}
+struct MaxPoolLayer {
+  int size, stride;
+  MaxPoolLayer(int size_, int stride_) : size(size_), stride(stride_) {}
 };
 
-/**
- * Represents a fully-connected neural network layer with bias.
- */
-struct FullyConnectedLayer
-{
-    int inputs, outputs;
-    std::vector<float> pneurons, pbias;
-
-    FullyConnectedLayer(int inputs_, int outputs_) : outputs(outputs_), inputs(inputs_),
-        pneurons(inputs_ * outputs_), pbias(outputs_) {}
-
-    bool FromFile(const char *fileprefix)
-    {
-        std::stringstream ssf, ssbf;
-        ssf << fileprefix << ".bin";
-        ssbf << fileprefix << ".bias.bin";
-
-        // Read weights file
-        FILE *fp = fopen(ssf.str().c_str(), "rb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssf.str().c_str());
-            return false;
-        }
-        size_t size = fread(&pneurons[0], sizeof(float), inputs * outputs, fp);
-        fclose(fp);
-
-        // Read bias file
-        fp = fopen(ssbf.str().c_str(), "rb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssbf.str().c_str());
-            return false;
-        }
-        size = fread(&pbias[0], sizeof(float), outputs, fp);
-        fclose(fp);
-        return true;
-    }
-
-    void ToFile(const char *fileprefix)
-    {
-        std::stringstream ssf, ssbf;
-        ssf << fileprefix << ".bin";
-        ssbf << fileprefix << ".bias.bin";
-
-        // Write weights file
-        FILE *fp = fopen(ssf.str().c_str(), "wb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssf.str().c_str());
-            exit(2);
-        }
-        fwrite(&pneurons[0], sizeof(float), inputs * outputs, fp);
-        fclose(fp);
-
-        // Write bias file
-        fp = fopen(ssbf.str().c_str(), "wb");
-        if (!fp)
-        {
-            printf("ERROR: Cannot open file %s\n", ssbf.str().c_str());
-            exit(2);
-        }
-        fwrite(&pbias[0], sizeof(float), outputs, fp);
-        fclose(fp);
-    }
+struct FullyConnectedLayer {
+  int inputs, outputs;
+  std::vector<float> pneurons, pbias;
+  FullyConnectedLayer(int inputs_, int outputs_) :
+    outputs(outputs_), inputs(inputs_), pneurons(inputs_ * outputs_), pbias(outputs_) {}
 };
 
-///////////////////////////////////////////////////////////////////////////////////////////
-// GPU Kernels
-
-/**
- * Fills a floating-point array with ones.
- *
- * @param vec The array to fill.
- * @param size The number of elements in the array.
- */
-__global__ void FillOnes(float *vec, int size)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= size)
-        return;
-
-    vec[idx] = 1.0f;
+__global__ void FillOnes(float *vec, int size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= size)
+    return;
+  vec[idx] = 1.0f;
 }
 
-/**
- * Computes the backpropagation results of the Softmax loss for each result in a batch.
- * Uses the softmax values obtained from forward propagation to compute the difference.
- *
- * @param label The training batch label values.
- * @param num_labels The number of possible labels.
- * @param batch_size The size of the trained batch.
- * @param diff The resulting gradient.
- */
-__global__ void SoftmaxLossBackprop(const float *label, int num_labels, int batch_size, float *diff)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= batch_size)
-        return;
-
-    const int label_value = static_cast<int>(label[idx]);
-
-    // For each item in the batch, decrease the result of the label's value by 1
-    diff[idx * num_labels + label_value] -= 1.0f;
+__global__ void SoftmaxLossBackprop(const float *label, int num_labels, int batch_size, float *diff) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= batch_size)
+    return;
+  const int label_value = static_cast<int>(label[idx]);
+  diff[idx * num_labels + label_value] -= 1.0f;
 }
-
-///////////////////////////////////////////////////////////////////////////////////////////
-// CUDNN/CUBLAS training context
 
 struct TrainingContext
 {
@@ -798,39 +628,14 @@ int main(int argc, char **argv) {
   printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
   printf("Batch size: %lld, iterations: %d\n", FLAGS_batch_size, FLAGS_iterations);
 
-    // Choose GPU
-    int num_gpus;
-    checkCudaErrors(cudaGetDeviceCount(&num_gpus));
-    if (FLAGS_gpu < 0 || FLAGS_gpu >= num_gpus)
-    {
-        printf("ERROR: Invalid GPU ID %d (There are %d GPUs on this machine)\n",
-               FLAGS_gpu, num_gpus);
-        return 4;
-    }
+  ConvBiasLayer conv1((int)channels, 20, 5, (int)width, (int)height);
+  MaxPoolLayer pool1(2, 2);
+  ConvBiasLayer conv2(conv1.out_channels, 50, 5, conv1.out_width / pool1.stride, conv1.out_height / pool1.stride);
+  MaxPoolLayer pool2(2, 2);
+  FullyConnectedLayer fc1((conv2.out_channels*conv2.out_width*conv2.out_height) / (pool2.stride * pool2.stride), 500);
+  FullyConnectedLayer fc2(fc1.outputs, 10);
+  TrainingContext context(FLAGS_gpu, FLAGS_batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
 
-    // Create the LeNet network architecture
-    ConvBiasLayer conv1((int)channels, 20, 5, (int)width, (int)height);
-    MaxPoolLayer pool1(2, 2);
-    ConvBiasLayer conv2(conv1.out_channels, 50, 5, conv1.out_width / pool1.stride, conv1.out_height / pool1.stride);
-    MaxPoolLayer pool2(2, 2);
-    FullyConnectedLayer fc1((conv2.out_channels*conv2.out_width*conv2.out_height) / (pool2.stride * pool2.stride),
-                            500);
-    FullyConnectedLayer fc2(fc1.outputs, 10);
-
-    // Initialize CUDNN/CUBLAS training context
-    TrainingContext context(FLAGS_gpu, FLAGS_batch_size, conv1, pool1, conv2, pool2, fc1, fc2);
-
-    // Determine initial network structure
-    bool bRet = true;
-    if (FLAGS_pretrained)
-    {
-      bRet = conv1.FromFile("conv1");
-      bRet &= conv2.FromFile("conv2");
-      bRet &= fc1.FromFile("ip1");
-      bRet &= fc2.FromFile("ip2");
-    }
-    if (!bRet || !FLAGS_pretrained)
-    {
         // Create random network
         std::random_device rd;
         std::mt19937 gen(FLAGS_random_seed < 0 ? rd() : static_cast<unsigned int>(FLAGS_random_seed));
@@ -862,7 +667,6 @@ int main(int argc, char **argv) {
             iter = static_cast<float>(dfc2(gen));
         for (auto&& iter : fc2.pbias)
             iter = static_cast<float>(dfc2(gen));
-    }
 
     /////////////////////////////////////////////////////////////////////////////
     // Create GPU data structures
@@ -993,27 +797,6 @@ int main(int argc, char **argv) {
     auto t2 = std::chrono::high_resolution_clock::now();
 
     printf("Iteration time: %f ms\n", std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / 1000.0f / FLAGS_iterations);
-
-    if (FLAGS_save_data)
-    {
-        // Copy trained weights from GPU to CPU
-        checkCudaErrors(cudaMemcpy(&conv1.pconv[0], d_pconv1, sizeof(float) * conv1.pconv.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&conv1.pbias[0], d_pconv1bias, sizeof(float) * conv1.pbias.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&conv2.pconv[0], d_pconv2, sizeof(float) * conv2.pconv.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&conv2.pbias[0], d_pconv2bias, sizeof(float) * conv2.pbias.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&fc1.pneurons[0], d_pfc1, sizeof(float) * fc1.pneurons.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&fc1.pbias[0], d_pfc1bias, sizeof(float) * fc1.pbias.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&fc2.pneurons[0], d_pfc2, sizeof(float) * fc2.pneurons.size(), cudaMemcpyDeviceToHost));
-        checkCudaErrors(cudaMemcpy(&fc2.pbias[0], d_pfc2bias, sizeof(float) * fc2.pbias.size(), cudaMemcpyDeviceToHost));
-
-        // Now save data
-        printf("Saving data to file\n");
-        conv1.ToFile("conv1");
-        conv2.ToFile("conv2");
-        fc1.ToFile("ip1");
-        fc2.ToFile("ip2");
-    }
-
 
     float classification_error = 1.0f;
 
