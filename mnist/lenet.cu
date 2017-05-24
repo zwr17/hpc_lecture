@@ -264,13 +264,8 @@ int main(int argc, char **argv) {
   int test_size = 10000;
   printf("Reading input data\n");
   std::vector<uint8_t> train_images(train_size * width * height), train_labels(train_size);
-  std::vector<uint8_t> test_images(test_size * width * height), test_labels(test_size);
   train_size = ReadUByteDataset("train-images-idx3-ubyte", "train-labels-idx1-ubyte", &train_images[0], &train_labels[0], width, height);
-  test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", &test_images[0], &test_labels[0], width, height);
-  printf("Done. Training dataset size: %d, Test dataset size: %d\n", (int)train_size, (int)test_size);
-  printf("Batch size: %d, iterations: %d\n", batch_size, iterations);
 
-  printf("%d %d\n",train_size,test_size);
   ConvBiasLayer conv1(1, 20, 5, (int)width, (int)height);
   MaxPoolLayer pool1(2, 2);
   ConvBiasLayer conv2(conv1.out_channels, 50, 5, conv1.out_width / pool1.stride, conv1.out_height / pool1.stride);
@@ -396,6 +391,8 @@ int main(int argc, char **argv) {
   double t2 = get_time();
   printf("Iteration time: %f ms\n", (t2 - t1) * 1000.0f / iterations);
 
+  std::vector<uint8_t> test_images(test_size * width * height), test_labels(test_size);
+  test_size = ReadUByteDataset("t10k-images-idx3-ubyte", "t10k-labels-idx1-ubyte", &test_images[0], &test_labels[0], width, height);
   float classification_error = 1.0f;
   int num_errors = 0;
   for (int i=0; i<test_size; i++) {
