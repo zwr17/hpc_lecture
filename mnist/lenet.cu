@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
   readImages("train-images-idx3-ubyte", train_images, width, height);
   readLabels("train-labels-idx1-ubyte", train_labels);
 
-  ConvBiasLayer conv1(1, 20, 5, (int)width, (int)height);
+  ConvBiasLayer conv1(1, 20, 5, width, height);
   MaxPoolLayer pool1(2, 2);
   ConvBiasLayer conv2(conv1.out_channels, 50, 5, conv1.out_width / pool1.stride, conv1.out_height / pool1.stride);
   MaxPoolLayer pool2(2, 2);
@@ -405,7 +405,7 @@ int main(int argc, char **argv) {
       num_errors++;
   }
   classification_error = (float)num_errors / (float)test_labels.size();
-  printf("Classification result: %.2f%% error (used %d images)\n", classification_error * 100.0f, (int)test_labels.size());
+  printf("Classification result: %.2f%% error (used %lu images)\n", classification_error * 100.0f, test_labels.size());
 
   cudaFree(d_data);
   cudaFree(d_conv1);
@@ -438,7 +438,6 @@ int main(int argc, char **argv) {
   cudaFree(d_labels);
   cudaFree(d_dlossdata);
   cudaFree(d_onevec);
-  if (d_cudnn_workspace != NULL)
-    cudaFree(d_cudnn_workspace);
+  cudaFree(d_cudnn_workspace);
   return 0;
 }
