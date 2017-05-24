@@ -296,16 +296,16 @@ int main(int argc, char **argv) {
     fc2.pbias[i] = drand48() * wfc2 * 2 - wfc2;
 
   float *d_data, *d_labels, *d_conv1, *d_pool1, *d_conv2, *d_pool2, *d_fc1, *d_fc1relu, *d_fc2, *d_fc2smax;
-  cudaMalloc(&d_data,    sizeof(float) * context.batch_size * 1                  * height                            * width);
-  cudaMalloc(&d_labels,  sizeof(float) * context.batch_size * 1                  * 1                                 * 1);
-  cudaMalloc(&d_conv1,   sizeof(float) * context.batch_size * conv1.out_channels * conv1.out_height                  * conv1.out_width);
-  cudaMalloc(&d_pool1,   sizeof(float) * context.batch_size * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
-  cudaMalloc(&d_conv2,   sizeof(float) * context.batch_size * conv2.out_channels * conv2.out_height                  * conv2.out_width);
-  cudaMalloc(&d_pool2,   sizeof(float) * context.batch_size * conv2.out_channels * (conv2.out_height / pool2.stride) * (conv2.out_width / pool2.stride));
-  cudaMalloc(&d_fc1,     sizeof(float) * context.batch_size * fc1.outputs);
-  cudaMalloc(&d_fc1relu, sizeof(float) * context.batch_size * fc1.outputs);
-  cudaMalloc(&d_fc2,     sizeof(float) * context.batch_size * fc2.outputs);
-  cudaMalloc(&d_fc2smax, sizeof(float) * context.batch_size * fc2.outputs);
+  cudaMalloc(&d_data,    sizeof(float) * batch_size * 1                  * height                            * width);
+  cudaMalloc(&d_labels,  sizeof(float) * batch_size * 1                  * 1                                 * 1);
+  cudaMalloc(&d_conv1,   sizeof(float) * batch_size * conv1.out_channels * conv1.out_height                  * conv1.out_width);
+  cudaMalloc(&d_pool1,   sizeof(float) * batch_size * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
+  cudaMalloc(&d_conv2,   sizeof(float) * batch_size * conv2.out_channels * conv2.out_height                  * conv2.out_width);
+  cudaMalloc(&d_pool2,   sizeof(float) * batch_size * conv2.out_channels * (conv2.out_height / pool2.stride) * (conv2.out_width / pool2.stride));
+  cudaMalloc(&d_fc1,     sizeof(float) * batch_size * fc1.outputs);
+  cudaMalloc(&d_fc1relu, sizeof(float) * batch_size * fc1.outputs);
+  cudaMalloc(&d_fc2,     sizeof(float) * batch_size * fc2.outputs);
+  cudaMalloc(&d_fc2smax, sizeof(float) * batch_size * fc2.outputs);
 
   float *d_pconv1, *d_pconv1bias, *d_pconv2, *d_pconv2bias;
   float *d_pfc1, *d_pfc1bias, *d_pfc2, *d_pfc2bias;
@@ -330,18 +330,18 @@ int main(int argc, char **argv) {
   cudaMalloc(&d_gfc2bias,   sizeof(float) * fc2.pbias.size());
 
   float *d_dpool1, *d_dpool2, *d_dconv2, *d_dfc1, *d_dfc1relu, *d_dfc2, *d_dfc2smax, *d_dlossdata;
-  cudaMalloc(&d_dpool1,   sizeof(float) * context.batch_size * conv1.out_channels * conv1.out_height                  * conv1.out_width);
-  cudaMalloc(&d_dpool2,   sizeof(float) * context.batch_size * conv2.out_channels * conv2.out_height                  * conv2.out_width);
-  cudaMalloc(&d_dconv2,   sizeof(float) * context.batch_size * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
-  cudaMalloc(&d_dfc1,     sizeof(float) * context.batch_size * fc1.inputs);
-  cudaMalloc(&d_dfc1relu, sizeof(float) * context.batch_size * fc1.outputs);
-  cudaMalloc(&d_dfc2,     sizeof(float) * context.batch_size * fc2.inputs);
-  cudaMalloc(&d_dfc2smax, sizeof(float) * context.batch_size * fc2.outputs);
-  cudaMalloc(&d_dlossdata,sizeof(float) * context.batch_size * fc2.outputs);
+  cudaMalloc(&d_dpool1,   sizeof(float) * batch_size * conv1.out_channels * conv1.out_height                  * conv1.out_width);
+  cudaMalloc(&d_dpool2,   sizeof(float) * batch_size * conv2.out_channels * conv2.out_height                  * conv2.out_width);
+  cudaMalloc(&d_dconv2,   sizeof(float) * batch_size * conv1.out_channels * (conv1.out_height / pool1.stride) * (conv1.out_width / pool1.stride));
+  cudaMalloc(&d_dfc1,     sizeof(float) * batch_size * fc1.inputs);
+  cudaMalloc(&d_dfc1relu, sizeof(float) * batch_size * fc1.outputs);
+  cudaMalloc(&d_dfc2,     sizeof(float) * batch_size * fc2.inputs);
+  cudaMalloc(&d_dfc2smax, sizeof(float) * batch_size * fc2.outputs);
+  cudaMalloc(&d_dlossdata,sizeof(float) * batch_size * fc2.outputs);
 
   float *d_onevec;
   void *d_cudnn_workspace = NULL;
-  cudaMalloc(&d_onevec, sizeof(float)* context.batch_size);
+  cudaMalloc(&d_onevec, sizeof(float)* batch_size);
   cudaMalloc(&d_cudnn_workspace, context.m_workspaceSize);
   cudaMemcpyAsync(d_pconv1, &conv1.pconv[0],     sizeof(float) * conv1.pconv.size(),  cudaMemcpyHostToDevice);
   cudaMemcpyAsync(d_pconv1bias, &conv1.pbias[0], sizeof(float) * conv1.pbias.size(),  cudaMemcpyHostToDevice);
@@ -352,7 +352,7 @@ int main(int argc, char **argv) {
   cudaMemcpyAsync(d_pfc2, &fc2.pneurons[0],      sizeof(float) * fc2.pneurons.size(), cudaMemcpyHostToDevice);
   cudaMemcpyAsync(d_pfc2bias, &fc2.pbias[0],     sizeof(float) * fc2.pbias.size(),    cudaMemcpyHostToDevice);
 
-  FillOnes<<<RoundUp(context.batch_size, BW), BW>>>(d_onevec, context.batch_size);
+  FillOnes<<<RoundUp(batch_size, BW), BW>>>(d_onevec, batch_size);
 
   printf("Preparing dataset\n");
   std::vector<float> train_images_float(train_images.size()), train_labels_float(train_labels.size());
@@ -365,9 +365,9 @@ int main(int argc, char **argv) {
   cudaDeviceSynchronize();
   double t1 = get_time();
   for (int iter=0; iter<iterations; iter++) {
-    int imageid = iter % (train_labels.size() / context.batch_size);
-    cudaMemcpyAsync(d_data, &train_images_float[imageid * context.batch_size * width*height], sizeof(float) * context.batch_size * width * height, cudaMemcpyHostToDevice);
-    cudaMemcpyAsync(d_labels, &train_labels_float[imageid * context.batch_size], sizeof(float) * context.batch_size, cudaMemcpyHostToDevice);
+    int imageid = iter % (train_labels.size() / batch_size);
+    cudaMemcpyAsync(d_data, &train_images_float[imageid * batch_size * width*height], sizeof(float) * batch_size * width * height, cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(d_labels, &train_labels_float[imageid * batch_size], sizeof(float) * batch_size, cudaMemcpyHostToDevice);
     context.ForwardPropagation(d_data, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_pconv1, d_pconv1bias, d_pconv2, d_pconv2bias,
                                d_pfc1, d_pfc1bias, d_pfc2, d_pfc2bias, d_cudnn_workspace, d_onevec);
     context.Backpropagation(conv1, pool1, conv2, pool2, d_data, d_labels, d_conv1, d_pool1, d_conv2, d_pool2, d_fc1, d_fc1relu, d_fc2, d_fc2smax, d_dlossdata,
