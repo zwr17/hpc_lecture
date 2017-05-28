@@ -1,6 +1,6 @@
 /*
  * --------------------------------------------------------------------------
- * BLISLAB 
+ * BLISLAB
  * --------------------------------------------------------------------------
  * Copyright (C) 2016, The University of Texas at Austin
  *
@@ -40,7 +40,7 @@
  *
  * Modification:
  *
- * 
+ *
  * */
 
 
@@ -48,11 +48,12 @@
 #include <stdlib.h>
 #include <omp.h>
 #include <limits.h>
-#include <time.h> 
+#include <time.h>
 
-#include <bl_sgemm.h>
-#include <bl_sgemm_ref.h>
-#include <bl_config.h>
+#include "bl_sgemm_ref.c"
+#include "bl_sgemm_util.c"
+#include "my_sgemm.c"
+#include "bl_sgemm_asm_24x4.c"
 
 #define USE_SET_DIFF 1
 #define TOLERANCE 1E0
@@ -81,7 +82,7 @@ void test_bl_sgemm(
         int m,
         int n,
         int k
-        ) 
+        )
 {
     int    i, j, p, nx;
     float *A, *B, *C, *C_ref;
@@ -108,7 +109,7 @@ void test_bl_sgemm(
     // Randonly generate points in [ 0, 1 ].
     for ( p = 0; p < k; p ++ ) {
         for ( i = 0; i < m; i ++ ) {
-            A( i, p ) = (float)( drand48() );	
+            A( i, p ) = (float)( drand48() );
         }
     }
     for ( j = 0; j < n; j ++ ) {
@@ -119,8 +120,8 @@ void test_bl_sgemm(
 
     for ( j = 0; j < n; j ++ ) {
         for ( i = 0; i < m; i ++ ) {
-            C_ref( i, j ) = (float)( 0.0 );	
-                C( i, j ) = (float)( 0.0 );	
+            C_ref( i, j ) = (float)( 0.0 );
+                C( i, j ) = (float)( 0.0 );
         }
     }
 
@@ -184,7 +185,7 @@ void test_bl_sgemm(
     // Compute overall floating point operations.
     flops = ( m * n / ( 1000.0 * 1000.0 * 1000.0 ) ) * ( 2 * k );
 
-    printf( "%5d\t %5d\t %5d\t %5.2lf\t %5.2lf\n", 
+    printf( "%5d\t %5d\t %5d\t %5.2lf\t %5.2lf\n",
             m, n, k, flops / bl_sgemm_rectime, flops / ref_rectime );
 
     free( A     );
@@ -195,7 +196,7 @@ void test_bl_sgemm(
 
 int main( int argc, char *argv[] )
 {
-    int    m, n, k; 
+    int    m, n, k;
 
     if ( argc != 4 ) {
         printf( "Error: require 3 arguments, but only %d provided.\n", argc - 1 );
@@ -210,4 +211,3 @@ int main( int argc, char *argv[] )
 
     return 0;
 }
-

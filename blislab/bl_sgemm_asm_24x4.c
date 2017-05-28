@@ -1,6 +1,6 @@
 /*
 
-   BLIS    
+   BLIS
    An object-based framework for developing high-performance BLAS-like
    libraries.
 
@@ -36,9 +36,20 @@
 #include <immintrin.h> // AVX
 
 #include "bl_sgemm_kernel.h"
-#include "avx_types.h"
 
-#define inc_t unsigned long long 
+typedef union {
+  __m256d v;
+  __m256i u;
+  double d[ 4 ];
+} v4df_t;
+
+
+typedef union {
+  __m128i v;
+  int d[ 4 ];
+} v4li_t;
+
+#define inc_t unsigned long long
 
 #define SGEMM_INPUT_GS_BETA_NZ \
 	"vmovlps    (%%rcx        ),  %%xmm0,  %%xmm0  \n\t" \
@@ -305,7 +316,7 @@ void bl_sgemm_asm_24x4(
 	"                                            \n\t"
 	"                                            \n\t"
 	"movq         %4, %%rax                      \n\t" // load address of alpha
-	"movq         %5, %%rbx                      \n\t" // load address of beta 
+	"movq         %5, %%rbx                      \n\t" // load address of beta
 	"vbroadcastss    (%%rax), %%ymm0             \n\t" // load alpha and duplicate
 	"vbroadcastss    (%%rbx), %%ymm3             \n\t" // load beta and duplicate
 	"                                            \n\t"
@@ -663,7 +674,7 @@ void bl_sgemm_asm_24x4(
 	  "m" (b_next), // 9
 	  "m" (a_next)*/  // 10
 	: // register clobber list
-	  "rax", "rbx", "rcx", "rdx", "rsi", "rdi", 
+	  "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
 	  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
 	  "xmm0", "xmm1", "xmm2", "xmm3",
 	  "xmm4", "xmm5", "xmm6", "xmm7",
@@ -672,4 +683,3 @@ void bl_sgemm_asm_24x4(
 	  "memory"
 	);
 }
-
