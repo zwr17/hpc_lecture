@@ -2,23 +2,10 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <omp.h>
 #include <limits.h>
+#include <immintrin.h>
+#include <omp.h>
 #include <time.h>
-
-typedef unsigned long long dim_t;
-
-struct aux_t {
-  float *b_next;
-  float *b_next_s;
-  char  *flag;
-  int   pc;
-  int   m;
-  int   n;
-};
-
-extern "C" void sgemm_(char*, char*, int*, int*, int*, float*, float*,
-                       int*, float*, int*, float*, float*, int*);
 
 #define GEMM_SIMD_ALIGN_SIZE 32
 #define SGEMM_MC 264
@@ -27,7 +14,9 @@ extern "C" void sgemm_(char*, char*, int*, int*, int*, float*, float*,
 #define SGEMM_MR 24
 #define SGEMM_NR 4
 
-#include "bl_sgemm_asm_24x4.c"
+extern "C" void sgemm_(char*, char*, int*, int*, int*, float*, float*,
+                       int*, float*, int*, float*, float*, int*);
+
 
 float *bl_malloc_aligned(int m, int n, int size) {
   float *ptr;
@@ -72,10 +61,21 @@ inline void packB_kcxnc_d(int n, int k, float *XB, int ldXB, int offsetb, float 
   }
 }
 
+#if 1
+#include "micro_kernel.h"
+#else
+void micro_kernel(int k, float* A, float* B, float* C, dim_t ldc, aux_t* aux) {
+  for (int i=0; i<aux.m; i++) {
+    for (int j=0; j<aux.n; j++) {
+    }
+  }
+}
+#endif
+
 void macro_kernel(int m, int n, int k, float *packA, float *packB, float *C, int ldc) {
   aux_t aux;
   aux.b_next = packB;
-  for (int j=0; j<n; j+=SGEMM_NR ) {
+  for (int j=0; j<n; j+=SGEMM_NR) {
     aux.n = std::min(n-j, SGEMM_NR);
     for (int i=0; i<m; i+=SGEMM_MR) {
       aux.m = std::min(m-i, SGEMM_MR);

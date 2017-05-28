@@ -1,53 +1,19 @@
-/*
-
-   BLIS
-   An object-based framework for developing high-performance BLAS-like
-   libraries.
-
-   Copyright (C) 2014, The University of Texas at Austin
-
-   Redistribution and use in source and binary forms, with or without
-   modification, are permitted provided that the following conditions are
-   met:
-    - Redistributions of source code must retain the above copyright
-      notice, this list of conditions and the following disclaimer.
-    - Redistributions in binary form must reproduce the above copyright
-      notice, this list of conditions and the following disclaimer in the
-      documentation and/or other materials provided with the distribution.
-    - Neither the name of The University of Texas at Austin nor the names
-      of its contributors may be used to endorse or promote products
-      derived from this software without specific prior written permission.
-
-   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-   HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-   THEORY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-#include <stdio.h>
-#include <immintrin.h> // AVX
-
 typedef union {
   __m256d v;
   __m256i u;
   double d[ 4 ];
 } v4df_t;
 
+typedef unsigned long long dim_t;
 
-typedef union {
-  __m128i v;
-  int d[ 4 ];
-} v4li_t;
-
-#define inc_t unsigned long long
+struct aux_t {
+  float *b_next;
+  float *b_next_s;
+  char  *flag;
+  int   pc;
+  int   m;
+  int   n;
+};
 
 #define SGEMM_INPUT_GS_BETA_NZ \
 	"vmovlps    (%%rcx        ),  %%xmm0,  %%xmm0  \n\t" \
@@ -79,14 +45,9 @@ typedef union {
 	"vpermilps  $0x39, %%xmm2,  %%xmm1           \n\t" \
 	"vmovss            %%xmm1, (%%rcx,%%r10  )   \n\t"
 
-void micro_kernel(int k,
-                  float* a,
-                  float* b,
-                  float* c,
-                  dim_t ldc,
-                  aux_t* data) {
-    const inc_t cs_c = ldc;
-    const inc_t rs_c = 1;
+void micro_kernel(int k, float* a, float* b, float* c, dim_t ldc, aux_t* data) {
+    const dim_t cs_c = ldc;
+    const dim_t rs_c = 1;
     float alpha_val = 1.0, beta_val = 1.0;
     float *alpha = &alpha_val;
     float *beta  = &beta_val;
@@ -100,7 +61,6 @@ void micro_kernel(int k,
        "                                            \n\t"
        "movq                %2, %%rax               \n\t" // load address of a.
        "movq                %3, %%rbx               \n\t" // load address of b.
-       //"movq                %9, %%r15               \n\t" // load address of b_next.
        "                                            \n\t"
        "                                            \n\t" // initialize loop by pre-loading
        "vmovaps            0 * 32(%%rax), %%ymm0    \n\t"
@@ -389,7 +349,6 @@ void micro_kernel(int k,
        SGEMM_INPUT_GS_BETA_NZ
        "vfmadd213ps      %%ymm13, %%ymm3,  %%ymm0   \n\t"
        SGEMM_OUTPUT_GS_BETA_NZ
-       //"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
        "                                            \n\t"
        "                                            \n\t"
        "movq      %%rdx, %%rcx                      \n\t" // rcx = c + 8*rs_c
@@ -416,7 +375,6 @@ void micro_kernel(int k,
        SGEMM_INPUT_GS_BETA_NZ
        "vfmadd213ps      %%ymm14, %%ymm3,  %%ymm0   \n\t"
        SGEMM_OUTPUT_GS_BETA_NZ
-       //"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
        "                                            \n\t"
        "                                            \n\t"
        "movq      %%r12, %%rcx                      \n\t" // rcx = c + 16*rs_c
@@ -443,7 +401,6 @@ void micro_kernel(int k,
        SGEMM_INPUT_GS_BETA_NZ
        "vfmadd213ps      %%ymm15, %%ymm3,  %%ymm0   \n\t"
        SGEMM_OUTPUT_GS_BETA_NZ
-       //"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
        "                                            \n\t"
        "                                            \n\t"
        "                                            \n\t"
@@ -547,7 +504,6 @@ void micro_kernel(int k,
        "                                            \n\t"
        "vmovaps           %%ymm13, %%ymm0           \n\t"
        SGEMM_OUTPUT_GS_BETA_NZ
-       //"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
        "                                            \n\t"
        "                                            \n\t"
        "movq      %%rdx, %%rcx                      \n\t" // rcx = c + 8*rs_c
@@ -570,7 +526,6 @@ void micro_kernel(int k,
        "                                            \n\t"
        "vmovaps           %%ymm14, %%ymm0           \n\t"
        SGEMM_OUTPUT_GS_BETA_NZ
-       //"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
        "                                            \n\t"
        "                                            \n\t"
        "movq      %%r12, %%rcx                      \n\t" // rcx = c + 16*rs_c
@@ -593,7 +548,6 @@ void micro_kernel(int k,
        "                                            \n\t"
        "vmovaps           %%ymm15, %%ymm0           \n\t"
        SGEMM_OUTPUT_GS_BETA_NZ
-       //"addq      %%rdi, %%rcx                      \n\t" // c += cs_c;
        "                                            \n\t"
        "                                            \n\t"
        "                                            \n\t"
@@ -630,11 +584,8 @@ void micro_kernel(int k,
        "addq      %%rdi, %%r12                      \n\t"
        "                                            \n\t"
        "vmovaps          %%ymm13, (%%rcx)           \n\t"
-       //"addq      %%rdi, %%rcx                      \n\t"
        "vmovaps          %%ymm14, (%%rdx)           \n\t"
-       //"addq      %%rdi, %%rdx                      \n\t"
        "vmovaps          %%ymm15, (%%r12)           \n\t"
-       //"addq      %%rdi, %%r12                      \n\t"
        "                                            \n\t"
        "                                            \n\t"
        "                                            \n\t"
