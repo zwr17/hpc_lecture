@@ -1,4 +1,21 @@
-#include <bl_config.h>
+float *bl_malloc_aligned(
+                         int    m,
+                         int    n,
+        int    size
+                         )
+{
+  float *ptr;
+  int    err;
+
+  err = posix_memalign( (void**)&ptr, (size_t)GEMM_SIMD_ALIGN_SIZE, size * m * n );
+
+  if ( err ) {
+    printf( "bl_malloc_aligned(): posix_memalign() failures" );
+    exit( 1 );
+  }
+
+  return ptr;
+}
 
 static void (*bl_micro_kernel) (
                                 int    k,

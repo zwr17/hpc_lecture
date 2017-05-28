@@ -39,9 +39,20 @@ void bl_sgemm_ref(
   time_sgemm = omp_get_wtime() - beg;
 }
 
-//#include "bl_sgemm_ref.c"
+#define A( i, j ) A[ (j)*lda + (i) ]
+#define B( i, j ) B[ (j)*ldb + (i) ]
+#define C( i, j ) C[ (j)*ldc + (i) ]
+#define C_ref( i, j ) C_ref[ (j)*ldc_ref + (i) ]
+
+#define GEMM_SIMD_ALIGN_SIZE 32
+#define SGEMM_MC 264
+#define SGEMM_NC 128
+#define SGEMM_KC 256
+#define SGEMM_MR 24
+#define SGEMM_NR 4
+#define BL_MICRO_KERNEL bl_sgemm_asm_24x4
+
 #include "bl_sgemm_asm_24x4.c"
-#include "bl_sgemm_util.c"
 #include "my_sgemm.c"
 
 #define USE_SET_DIFF 1
