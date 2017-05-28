@@ -1,5 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <omp.h>
 #include <limits.h>
 #include <time.h>
@@ -8,36 +9,16 @@ typedef unsigned long long dim_t;
 
 struct aux_s {
   float *b_next;
-  float  *b_next_s;
-  char   *flag;
-  int    pc;
-  int    m;
-  int    n;
+  float *b_next_s;
+  char  *flag;
+  int   pc;
+  int   m;
+  int   n;
 };
 typedef struct aux_s aux_t;
 
-extern void sgemm_(char*, char*, int*, int*, int*, float*, float*,
-                   int*, float*, int*, float*, float*, int*);
-
-void bl_sgemm_ref(
-                  int    m,
-                  int    n,
-                  int    k,
-                  float *XA,
-                  int    lda,
-                  float *XB,
-                  int    ldb,
-                  float *XC,
-        int    ldc
-                  ) {
-  int    i, j, p;
-  float beg, time_collect, time_sgemm, time_square;
-  float alpha = 1.0, beta = 1.0;
-  beg = omp_get_wtime();
-  sgemm_( "N", "N", &m, &n, &k, &alpha,
-          XA, &lda, XB, &ldb, &beta, XC, &ldc );
-  time_sgemm = omp_get_wtime() - beg;
-}
+extern "C" void sgemm_(char*, char*, int*, int*, int*, float*, float*,
+                       int*, float*, int*, float*, float*, int*);
 
 #define A( i, j ) A[ (j)*lda + (i) ]
 #define B( i, j ) B[ (j)*ldb + (i) ]
@@ -84,6 +65,7 @@ void test_bl_sgemm(
         int k
         )
 {
+  float alpha = 1.0, beta = 1.0;
     int    i, j, p, nx;
     float *A, *B, *C, *C_ref;
     float tmp, error, flops;
@@ -151,19 +133,7 @@ void test_bl_sgemm(
 
     for ( i = 0; i < nrepeats; i ++ ) {
         ref_beg = omp_get_wtime();
-        {
-            bl_sgemm_ref(
-                    m,
-                    n,
-                    k,
-                    A,
-                    lda,
-                    B,
-                    ldb,
-                    C_ref,
-                    ldc_ref
-                    );
-        }
+        sgemm_( "N", "N", &m, &n, &k, &alpha, A, &lda, B, &ldb, &beta, C_ref, &ldc_ref );
         ref_time = omp_get_wtime() - ref_beg;
 
         if ( i == 0 ) {
