@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -7,7 +8,7 @@
 
 typedef unsigned long long dim_t;
 
-struct aux_s {
+struct aux_t {
   float *b_next;
   float *b_next_s;
   char  *flag;
@@ -15,7 +16,6 @@ struct aux_s {
   int   m;
   int   n;
 };
-typedef struct aux_s aux_t;
 
 extern "C" void sgemm_(char*, char*, int*, int*, int*, float*, float*,
                        int*, float*, int*, float*, float*, int*);
@@ -36,43 +36,19 @@ extern "C" void sgemm_(char*, char*, int*, int*, int*, float*, float*,
 #include "bl_sgemm_asm_24x4.c"
 #include "my_sgemm.c"
 
-#define USE_SET_DIFF 1
-#define TOLERANCE 1E0
-void computeError(
-        int    ldc,
-        int    ldc_ref,
-        int    m,
-        int    n,
-        float *C,
-        float *C_ref
-        )
-{
-    int    i, j;
-    for ( i = 0; i < m; i ++ ) {
-        for ( j = 0; j < n; j ++ ) {
-            if ( fabs( C( i, j ) - C_ref( i, j ) ) > TOLERANCE ) {
-                printf( "C[ %d ][ %d ] != C_ref, %E, %E\n", i, j, C( i, j ), C_ref( i, j ) );
-                break;
-            }
-        }
-    }
-
-}
-
-void test_bl_sgemm(
-        int m,
-        int n,
-        int k
-        )
-{
+int main(int argc, char *argv[]) {
+  int m, n, k;
+  sscanf(argv[1], "%d", &m);
+  sscanf(argv[2], "%d", &n);
+  sscanf(argv[3], "%d", &k);
   float alpha = 1.0, beta = 1.0;
-    int    i, j, p, nx;
-    float *A, *B, *C, *C_ref;
-    float tmp, error, flops;
-    double ref_beg, ref_time, bl_sgemm_beg, bl_sgemm_time;
-    int    nrepeats;
-    int    lda, ldb, ldc, ldc_ref;
-    double ref_rectime, bl_sgemm_rectime;
+  int    i, j, p, nx;
+  float *A, *B, *C, *C_ref;
+  float tmp, error, flops;
+  double ref_beg, ref_time, bl_sgemm_beg, bl_sgemm_time;
+  int    nrepeats;
+  int    lda, ldb, ldc, ldc_ref;
+  double ref_rectime, bl_sgemm_rectime;
 
     A    = (float*)malloc( sizeof(float) * m * k );
     B    = (float*)malloc( sizeof(float) * k * n );
@@ -143,15 +119,14 @@ void test_bl_sgemm(
         }
     }
 
-    computeError(
-            ldc,
-            ldc_ref,
-            m,
-            n,
-            C,
-            C_ref
-            );
-
+    for ( i = 0; i < m; i ++ ) {
+      for ( j = 0; j < n; j ++ ) {
+        if ( fabs( C( i, j ) - C_ref( i, j ) ) > 1E0 ) {
+          printf( "C[ %d ][ %d ] != C_ref, %E, %E\n", i, j, C( i, j ), C_ref( i, j ) );
+          break;
+        }
+      }
+    }
     // Compute overall floating point operations.
     flops = ( m * n / ( 1000.0 * 1000.0 * 1000.0 ) ) * ( 2 * k );
 
@@ -162,22 +137,5 @@ void test_bl_sgemm(
     free( B     );
     free( C     );
     free( C_ref );
-}
-
-int main( int argc, char *argv[] )
-{
-    int    m, n, k;
-
-    if ( argc != 4 ) {
-        printf( "Error: require 3 arguments, but only %d provided.\n", argc - 1 );
-        exit( 0 );
-    }
-
-    sscanf( argv[ 1 ], "%d", &m );
-    sscanf( argv[ 2 ], "%d", &n );
-    sscanf( argv[ 3 ], "%d", &k );
-
-    test_bl_sgemm( m, n, k );
-
     return 0;
 }
