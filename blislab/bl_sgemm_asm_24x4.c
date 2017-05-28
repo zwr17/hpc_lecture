@@ -35,8 +35,6 @@
 #include <stdio.h>
 #include <immintrin.h> // AVX
 
-#include "bl_sgemm_kernel.h"
-
 typedef union {
   __m256d v;
   __m256i u;
