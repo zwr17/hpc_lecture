@@ -4,17 +4,6 @@ typedef union {
   double d[ 4 ];
 } v4df_t;
 
-typedef unsigned long long dim_t;
-
-struct aux_t {
-  float *b_next;
-  float *b_next_s;
-  char  *flag;
-  int   pc;
-  int   m;
-  int   n;
-};
-
 #define SGEMM_INPUT_GS_BETA_NZ \
 	"vmovlps    (%%rcx        ),  %%xmm0,  %%xmm0  \n\t" \
 	"vmovhps    (%%rcx,%%rsi,1),  %%xmm0,  %%xmm0  \n\t" \
