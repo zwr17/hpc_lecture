@@ -72,17 +72,17 @@ void micro_kernel(int k, float* A, float* B, float* C, dim_t ldc, aux_t* aux) {
 }
 #endif
 
-void macro_kernel(int m, int n, int k, float *packA, float *packB, float *C, int ldc) {
+void macro_kernel(int mc, int nc, int k, float *packA, float *packB, float *C, int ldc) {
   aux_t aux;
   aux.b_next = packB;
-  for (int j=0; j<n; j+=SGEMM_NR) {
-    aux.n = std::min(n-j, SGEMM_NR);
-    for (int i=0; i<m; i+=SGEMM_MR) {
-      aux.m = std::min(m-i, SGEMM_MR);
-      if (i+SGEMM_MR >= m) {
+  for (int jr=0; jr<nc; jr+=SGEMM_NR) {
+    aux.n = std::min(nc-jr, SGEMM_NR);
+    for (int ir=0; ir<mc; ir+=SGEMM_MR) {
+      aux.m = std::min(mc-ir, SGEMM_MR);
+      if (ir+SGEMM_MR >= mc) {
         aux.b_next += SGEMM_NR * k;
       }
-      micro_kernel(k, &packA[i*k], &packB[j*k], &C[j*ldc+i], ldc, &aux);
+      micro_kernel(k, &packA[ir*k], &packB[jr*k], &C[jr*ldc+ir], ldc, &aux);
     }
   }
 }
@@ -96,21 +96,21 @@ void bl_sgemm(int m, int n, int k, float *XA, int lda, float *XB, int ldb, float
   float * packA = bl_malloc_aligned(SGEMM_KC, (SGEMM_MC+1)*bl_ic_nt, sizeof(float));
   float * packB = bl_malloc_aligned(SGEMM_KC, (SGEMM_NC+1)         , sizeof(float));
   for (int jc=0; jc<n; jc+=SGEMM_NC) {
-    int jb = std::min(n-jc, SGEMM_NC);
+    int nc = std::min(n-jc, SGEMM_NC);
     for (int pc=0; pc<k; pc+=SGEMM_KC) {
-      int pb = std::min(k-pc, SGEMM_KC);
+      int kc = std::min(k-pc, SGEMM_KC);
 #pragma omp parallel for num_threads(bl_ic_nt)
-      for (int j=0; j<jb; j+=SGEMM_NR) {
-        packB_kcxnc_d(std::min(jb-j, SGEMM_NR), pb, &XB[pc], k, jc+j, &packB[j*pb]);
+      for (int j=0; j<nc; j+=SGEMM_NR) {
+        packB_kcxnc_d(std::min(nc-j, SGEMM_NR), kc, &XB[pc], k, jc+j, &packB[j*kc]);
       }
 #pragma omp parallel for num_threads(bl_ic_nt)
       for (int ic=0; ic<m; ic+=SGEMM_MC) {
         int tid = omp_get_thread_num();
         int ib = std::min(m-ic, SGEMM_MC);
         for (int i=0; i<ib; i+=SGEMM_MR) {
-          packA_mcxkc_d(std::min(ib-i, SGEMM_MR), pb, &XA[pc*lda], m, ic+i, &packA[tid*SGEMM_MC*pb+i*pb]);
+          packA_mcxkc_d(std::min(ib-i, SGEMM_MR), kc, &XA[pc*lda], m, ic+i, &packA[tid*SGEMM_MC*kc+i*kc]);
         }
-        macro_kernel(ib, jb, pb, packA+tid*SGEMM_MC*pb, packB, &C[jc*ldc+ic], ldc);
+        macro_kernel(ib, nc, kc, packA+tid*SGEMM_MC*kc, packB, &C[jc*ldc+ic], ldc);
       }
     }
   }
@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
   }
   for (int i=0; i<m; i++) {
     for (int j=0; j<n; j++) {
-      if (fabs(C(i,j) - C_ref(i,j)) > 1E0) {
+      if (fabs(C(i,j) - C_ref(i,j)) > 1e-3) {
         printf( "C[ %d ][ %d ] != C_ref, %E, %E\n", i, j, C(i,j), C_ref(i,j));
         break;
       }
