@@ -7,12 +7,12 @@
 #include <omp.h>
 #include <time.h>
 
-#define GEMM_SIMD_ALIGN_SIZE 32
-#define SGEMM_MC 264
-#define SGEMM_NC 128
+#define GEMM_SIMD_ALIGN_SIZE 64
+#define SGEMM_MC 264  // SGEMM_MRの倍数
+#define SGEMM_NC 256
 #define SGEMM_KC 256
-#define SGEMM_MR 24
-#define SGEMM_NR 4
+#define SGEMM_MR 24  // 24じゃないとおかしくなる
+#define SGEMM_NR 4   // 4じゃないとおかしくなる
 
 typedef unsigned long long dim_t;
 
