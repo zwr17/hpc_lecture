@@ -1,7 +1,8 @@
 #include <pthread.h>
 #include <stdio.h>
 
-const size_t size=1000000;
+const size_t size=1000000000;
+const int nthreads=1;
 static size_t sum=0;
 
 void* print(void* arg) {
@@ -10,24 +11,25 @@ void* print(void* arg) {
   pthread_mutex_lock(&mutex);
   t++;
   pthread_mutex_unlock(&mutex);
-  size_t ibegin = (t-1)*size/10;
-  size_t iend = t*size/10;
-  printf("thread %d, range %ld - %ld\n", t-1, ibegin, iend-1);
+  size_t ibegin = (t-1)*size/nthreads;
+  size_t iend = t*size/nthreads;
   size_t *a = (size_t*)arg;
+  size_t partial=0;
+  for (size_t i=ibegin; i<iend; i++) partial+=a[i];
   pthread_mutex_lock(&mutex);
-  for (int i=ibegin; i<iend; i++) sum+=a[i];
+  sum += partial;
   pthread_mutex_unlock(&mutex);
 }
 
 int main() {
   size_t *a = new size_t [size];
   for (size_t i=0; i<size; i++) a[i] = 1;
-  pthread_t thread[10];
-  for(int i=0; i<10; i++) {
+  pthread_t thread[nthreads];
+  for(int i=0; i<nthreads; i++) {
     pthread_create(&thread[i], NULL, print, (void*)a);
   }
   printf("sum = %ld\n", sum);
-  for(int i=0; i<10; i++) {
+  for(int i=0; i<nthreads; i++) {
     pthread_join(thread[i], NULL);
   }
   printf("sum = %ld\n", sum);
