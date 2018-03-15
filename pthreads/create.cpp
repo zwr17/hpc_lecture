@@ -1,10 +1,10 @@
 #include <pthread.h>
 #include <stdio.h>
 
-static int i=0;
-
 void* print(void*) {
-  printf("%d\n", i++);
+  static int i=0;
+  printf("%d\n", i);
+  i++;
 }
 
 int main() {

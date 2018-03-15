@@ -1,9 +1,10 @@
 #include <stdio.h>
 
-static int i=0;
 
 void print() {
-  printf("%d\n", i++);
+  static int i=0;
+  printf("%d\n", i);
+  i++;
 }
 
 int main() {
