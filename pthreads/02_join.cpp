@@ -2,13 +2,13 @@
 #include <stdio.h>
 
 void* print(void*) {
-  static int i=0;
-  printf("%d\n", i);
-  i++;
+  static int t=0;
+  printf("%d\n", t);
+  t++;
 }
 
 int main() {
-  for(int t=0; t<10; t++) {
+  for(int i=0; i<10; i++) {
     pthread_t thread;
     pthread_create(&thread, NULL, print, NULL);
     pthread_join(thread, NULL);
