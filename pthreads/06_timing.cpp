@@ -1,8 +1,9 @@
 #include <pthread.h>
 #include <stdio.h>
+#include <sys/time.h>
 
 const size_t size=1000000000;
-const int nthreads=1;
+const int nthreads=4;
 static size_t sum=0;
 
 void* print(void* arg) {
@@ -25,14 +26,19 @@ int main() {
   size_t *a = new size_t [size];
   for (size_t i=0; i<size; i++) a[i] = 1;
   pthread_t thread[nthreads];
+  struct timeval tic, toc;
+  gettimeofday(&tic, NULL);
   for(int i=0; i<nthreads; i++) {
+    printf("create: %d\n",i);
     pthread_create(&thread[i], NULL, print, (void*)a);
   }
-  printf("sum = %ld\n", sum);
   for(int i=0; i<nthreads; i++) {
+    printf("join  : %d\n",i);
     pthread_join(thread[i], NULL);
   }
+  gettimeofday(&toc, NULL);
   printf("sum = %ld\n", sum);
+  printf("%lf s\n",toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
   delete[] a;
   pthread_exit(NULL);
 }
