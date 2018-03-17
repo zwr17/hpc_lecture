@@ -147,39 +147,28 @@ int main(int argc, char *argv[]) {
   max = 2;
   consumers = 2;
   producers = 1;
-
   buffer = new int [max];
-  int i;
-  for (i = 0; i < max; i++) {
+  for (int i = 0; i < max; i++) {
     buffer[i] = EMPTY;
   }
-
   print_headers();
-
   struct timeval tic, toc;
   gettimeofday(&tic, NULL);
-
-  // start up all threads; order doesn't matter here
   pthread_t pid[MAX_THREADS], cid[MAX_THREADS];
   int thread_id = 0;
-  for (i = 0; i < producers; i++) {
+  for (int i = 0; i < producers; i++) {
     pthread_create(&pid[i], NULL, producer, (void *) (long long) thread_id);
     thread_id++;
   }
-  for (i = 0; i < consumers; i++) {
+  for (int i = 0; i < consumers; i++) {
     pthread_create(&cid[i], NULL, consumer, (void *) (long long) thread_id);
     thread_id++;
   }
-
-  // now wait for all PRODUCERS to finish
-  for (i = 0; i < producers; i++) {
+  for (int i = 0; i < producers; i++) {
     pthread_join(pid[i], NULL);
   }
 
-  // end case: when producers are all done
-  // - put "consumers" number of END_OF_STREAM's in queue
-  // - when consumer sees -1, it exits
-  for (i = 0; i < consumers; i++) {
+  for (int i = 0; i < consumers; i++) {
     pthread_mutex_lock(&m);
     while (num_full == max)
       pthread_cond_wait(empty_cv, &m);
@@ -189,20 +178,16 @@ int main(int argc, char *argv[]) {
     pthread_mutex_unlock(&m);
   }
 
-  // now OK to wait for all consumers
   int counts[consumers];
-  for (i = 0; i < consumers; i++) {
+  for (int i = 0; i < consumers; i++) {
     pthread_join(cid[i], (void **)&counts[i]);
   }
-
   gettimeofday(&toc, NULL);
-
   printf("\nConsumer consumption:\n");
-  for (i = 0; i < consumers; i++) {
+  for (int i = 0; i < consumers; i++) {
     printf("  C%d -> %d\n", i, counts[i]);
   }
   printf("\n");
-
   printf("Total time: %.2f seconds\n", toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
   return 0;
 }
