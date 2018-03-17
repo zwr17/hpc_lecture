@@ -1,40 +1,37 @@
 #include <stdio.h>
 #include <pthread.h>
 
-#define EMPTY -2           // buffer slot has nothing in it
-#define END -1             // consumer who grabs this should exit
-const int loops=2;         // number of producer loops
-const int producers=2;     // number of producers
-const int consumers=2;     // number of consumers
+const int end=-1;
+const int loops=2;
+const int producers=2;
+const int consumers=2;
 const int num_threads=producers+consumers;
-int value=EMPTY;           // the value
+int value=0;
 pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
 void print_headers(int producers, int consumers) {
-  printf("    ");
+  printf("   ");
   for (int i=0; i<producers; i++)
-    printf(" P%d  ", i);
+    printf(" P%d    ", i);
   for (int i=0; i<consumers; i++)
-    printf(" C%d  ", i);
+    printf(" C%d    ", i);
   printf("\n");
 }
 
 void print(int thread_id, const char *str) {
   printf("[");
-  if (value == EMPTY) {
-    printf("%s", "-");
-  } else if (value == END) {
+  if (value == end) {
     printf("%s", "E");
   } else {
     printf("%d", value);
   }
   printf("] ");
   for (int i=0; i<thread_id; i++) {
-    printf("     ");
+    printf("       ");
   }
-  printf("%4s\n", str);
+  printf("%6s\n", str);
 }
 
 void put(int v) {
@@ -43,20 +40,20 @@ void put(int v) {
 
 int get() {
   int tmp=value;
-  value=EMPTY;
+  value=0;
   return tmp;
 }
 
 void *producer(void *arg) {
   int id=(size_t) arg;
-  int base=id * loops;
+  int base=id*loops+1;
   for (int i=0; i<loops; i++) {
-    pthread_mutex_lock(&mutex); print(id, "lock");
-    while (value != EMPTY) { print(id, "full"); print(id, "uloc");
-      pthread_cond_wait(&empty, &mutex); print(id, "resu"); print(id, "lock");
+    pthread_mutex_lock(&mutex); print(id, "lock  ");
+    while (value != 0) { print(id, "full  "); print(id, "unlock");
+      pthread_cond_wait(&empty, &mutex); print(id, "resume"); print(id, "lock  ");
     }
-    put(base + i); print(id, "put ");
-    pthread_cond_signal(&fill); print(id, "uloc");
+    put(base+i); print(id, "put   ");
+    pthread_cond_signal(&fill); print(id, "unlock");
     pthread_mutex_unlock(&mutex);
   }
   return NULL;
@@ -65,13 +62,13 @@ void *producer(void *arg) {
 void *consumer(void *arg) {
   int id=(size_t) arg;
   int tmp=0;
-  while (tmp != END) {
-    pthread_mutex_lock(&mutex); print(id, "lock");
-    while (value == EMPTY) { print(id, "none"); print(id, "uloc");
-      pthread_cond_wait(&fill, &mutex); print(id, "resu"); print(id, "lock");
+  while (tmp != end) {
+    pthread_mutex_lock(&mutex); print(id, "lock  ");
+    while (value == 0) { print(id, "empty "); print(id, "unlock");
+      pthread_cond_wait(&fill, &mutex); print(id, "resume"); print(id, "lock  ");
     }
-    tmp=get(); print(id, "get ");
-    pthread_cond_signal(&empty); print(id, "uloc");
+    tmp=get(); print(id, "get   ");
+    pthread_cond_signal(&empty); print(id, "unlock");
     pthread_mutex_unlock(&mutex);
   }
   return NULL;
@@ -94,9 +91,9 @@ int main(int argc, char *argv[]) {
   }
   for (int i=0; i<consumers; i++) {
     pthread_mutex_lock(&mutex);
-    while (value != EMPTY)
+    while (value != 0)
       pthread_cond_wait(&empty, &mutex);
-    put(END);
+    put(end);
     pthread_cond_signal(&fill);
     pthread_mutex_unlock(&mutex);
   }
