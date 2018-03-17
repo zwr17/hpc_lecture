@@ -1,11 +1,5 @@
-#include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <assert.h>
 #include <pthread.h>
-#include <sys/time.h>
-#include <string.h>
 
 #define EMPTY         (-2) // buffer slot has nothing in it
 #define END_OF_STREAM (-1) // consumer who grabs this should exit
@@ -60,7 +54,6 @@ void print(int thread_id, const char *str) {
     printf("     ");
   }
   printf("%4s\n", str);
-  sleep(0);
 }
 
 void put(int value) {
