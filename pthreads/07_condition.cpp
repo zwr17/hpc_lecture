@@ -13,13 +13,6 @@ void *Malloc(size_t size) {
   return p;
 }
 
-double Time_GetSeconds() {
-  struct timeval t;
-  int rc = gettimeofday(&t, NULL);
-  assert(rc == 0);
-  return (double) ((double)t.tv_sec + (double)t.tv_usec / 1e6);
-}
-
 void Mutex_init(pthread_mutex_t *m) {
   assert(pthread_mutex_init(m, NULL) == 0);
 }
@@ -82,9 +75,6 @@ pthread_cond_t empty  = PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill   = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t m     = PTHREAD_MUTEX_INITIALIZER;
 
-int do_trace = 0;
-int do_timing = 0;
-
 #define p0 do_pause(id, 1, 0, "p0");
 #define p1 do_pause(id, 1, 1, "p1");
 #define p2 do_pause(id, 1, 2, "p2");
@@ -108,8 +98,6 @@ int consumer_pause_times[MAX_THREADS][7];
 pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void do_print_headers() {
-  if (do_trace == 0)
-    return;
   int i;
   printf("%3s ", "NF");
   for (i = 0; i < max; i++) {
@@ -153,28 +141,21 @@ void do_print_buffer() {
 }
 
 void do_eos() {
-  if (do_trace) {
-    Mutex_lock(&print_lock);
-    do_print_buffer();
-    //printf("%3d [added end-of-stream marker]\n", num_full);
-    printf("[main: added end-of-stream marker]\n");
-    Mutex_unlock(&print_lock);
-  }
+  Mutex_lock(&print_lock);
+  do_print_buffer();
+  printf("[main: added end-of-stream marker]\n");
+  Mutex_unlock(&print_lock);
 }
 
 void do_pause(int thread_id, int is_producer, int pause_slot, char *str) {
   int i;
-  if (do_trace) {
-    Mutex_lock(&print_lock);
-    do_print_buffer();
-
-    // skip over other thread's spots
-    for (i = 0; i < thread_id; i++) {
-      printf("   ");
-    }
-    printf("%s\n", str);
-    Mutex_unlock(&print_lock);
+  Mutex_lock(&print_lock);
+  do_print_buffer();
+  for (i = 0; i < thread_id; i++) {
+    printf("   ");
   }
+  printf("%s\n", str);
+  Mutex_unlock(&print_lock);
 
   int local_id = thread_id;
   int pause_time;
@@ -354,12 +335,6 @@ int main(int argc, char *argv[]) {
     case 'C':
       consumer_pause_string = optarg;
       break;
-    case 'v':
-      do_trace = 1;
-      break;
-    case 't':
-      do_timing = 1;
-      break;
     default:
       usage();
     }
@@ -384,7 +359,8 @@ int main(int argc, char *argv[]) {
 
   do_print_headers();
 
-  double t1 = Time_GetSeconds();
+  struct timeval tic, toc;
+  gettimeofday(&tic, NULL);
 
   // start up all threads; order doesn't matter here
   pthread_t pid[MAX_THREADS], cid[MAX_THREADS];
@@ -422,19 +398,14 @@ int main(int argc, char *argv[]) {
     pthread_join(cid[i], (void **)&counts[i]);
   }
 
-  double t2 = Time_GetSeconds();
+  gettimeofday(&toc, NULL);
 
-  if (do_trace) {
-    printf("\nConsumer consumption:\n");
-    for (i = 0; i < consumers; i++) {
-      printf("  C%d -> %d\n", i, counts[i]);
-    }
-    printf("\n");
+  printf("\nConsumer consumption:\n");
+  for (i = 0; i < consumers; i++) {
+    printf("  C%d -> %d\n", i, counts[i]);
   }
+  printf("\n");
 
-  if (do_timing) {
-    printf("Total time: %.2f seconds\n", t2-t1);
-  }
-
+  printf("Total time: %.2f seconds\n", toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
   return 0;
 }
