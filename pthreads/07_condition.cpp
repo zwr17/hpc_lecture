@@ -23,7 +23,7 @@ pthread_cond_t fill=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
 void print_headers(int producers, int consumers) {
-  printf("%2s ", "N");
+  printf("%s ", "N");
   for (int i=0; i<max_buffer; i++) {
     printf(" %s ", " ");
   }
