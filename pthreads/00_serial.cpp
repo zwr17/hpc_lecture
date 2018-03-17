@@ -1,6 +1,5 @@
 #include <stdio.h>
 
-
 void print() {
   static int t=0;
   printf("%d\n", t);
