@@ -9,19 +9,22 @@
 
 #define EMPTY         (-2) // buffer slot has nothing in it
 #define END_OF_STREAM (-1) // consumer who grabs this should exit
-#define MAX_THREADS 100    // maximum number of producers/consumers
-#define MAX_BUFFER 1       // maximum capacity of buffer
-int *buffer;               // the buffer itself: malloc in main()
-int use_ptr=0;             // tracks where next consume should come from
-int fill_ptr=0;            // tracks where next produce should go to
+const int loops=2;         // number of producer loops
+const int producers=2;     // number of producers
+const int consumers=2;     // number of consumers
+const int num_threads=producers+consumers;
+const int max_buffer=3;    // maximum capacity of buffer
+int begin_p=0;             // tracks where next consume should come from
+int end_p=0;               // tracks where next produce should go to
 int count=0;               // counts how many entries are full
+int *buffer;               // the buffer itself: malloc in main()
 pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
 void print_headers(int producers, int consumers) {
   printf("%2s ", "N");
-  for (int i=0; i<MAX_BUFFER; i++) {
+  for (int i=0; i<max_buffer; i++) {
     printf(" %s ", " ");
   }
   printf("  ");
@@ -32,15 +35,15 @@ void print_headers(int producers, int consumers) {
   printf("\n");
 }
 
-void print(int thread_id, int is_producer, int pause_slot, const char *str) {
+void print(int thread_id, const char *str) {
   printf("%d [", count);
-  for (int i=0; i<MAX_BUFFER; i++) {
-    if (use_ptr == i && fill_ptr == i) {
+  for (int i=0; i<max_buffer; i++) {
+    if (begin_p == i && end_p == i) {
       printf("*");
-    } else if (use_ptr == i) {
-      printf("u");
-    } else if (fill_ptr == i) {
-      printf("f");
+    } else if (begin_p == i) {
+      printf("b");
+    } else if (end_p == i) {
+      printf("e");
     } else {
       printf(" ");
     }
@@ -61,30 +64,29 @@ void print(int thread_id, int is_producer, int pause_slot, const char *str) {
 }
 
 void put(int value) {
-  buffer[fill_ptr]=value;
-  fill_ptr=(fill_ptr + 1) % MAX_BUFFER;
+  buffer[end_p]=value;
+  end_p=(end_p + 1) % max_buffer;
   count++;
 }
 
 int get() {
-  int tmp=buffer[use_ptr];
-  buffer[use_ptr]=EMPTY;
-  use_ptr=(use_ptr + 1) % MAX_BUFFER;
+  int tmp=buffer[begin_p];
+  buffer[begin_p]=EMPTY;
+  begin_p=(begin_p + 1) % max_buffer;
   count--;
   return tmp;
 }
 
 void *producer(void *arg) {
-  const int loops=2;
   int id=(size_t) arg;
   int base=id * loops;
   for (int i=0; i<loops; i++) {
-    pthread_mutex_lock(&mutex); print(id, 1, 1, "lock");
-    while (count == MAX_BUFFER) { print(id, 1, 2, "full"); print(id, 1, 2, "uloc");
-      pthread_cond_wait(&empty, &mutex); print(id, 1, 3, "resu"); print(id, 1, 3, "lock");
+    pthread_mutex_lock(&mutex); print(id, "lock");
+    while (count == max_buffer) { print(id, "full"); print(id, "uloc");
+      pthread_cond_wait(&empty, &mutex); print(id, "resu"); print(id, "lock");
     }
-    put(base + i); print(id, 1, 4, "put ");
-    pthread_cond_signal(&fill); print(id, 1, 5, "uloc");
+    put(base + i); print(id, "put ");
+    pthread_cond_signal(&fill); print(id, "uloc");
     pthread_mutex_unlock(&mutex);
   }
   return NULL;
@@ -95,12 +97,12 @@ void *consumer(void *arg) {
   int tmp=0;
   size_t consumed_count=0;
   while (tmp != END_OF_STREAM) {
-    pthread_mutex_lock(&mutex); print(id, 0, 1, "lock");
-    while (count == 0) { print(id, 0, 2, "empt"); print(id, 0, 2, "uloc");
-      pthread_cond_wait(&fill, &mutex); print(id, 0, 3, "resu"); print(id, 0, 3, "lock");
+    pthread_mutex_lock(&mutex); print(id, "lock");
+    while (count == 0) { print(id, "empt"); print(id, "uloc");
+      pthread_cond_wait(&fill, &mutex); print(id, "resu"); print(id, "lock");
     }
-    tmp=get(); print(id, 0, 4, "get ");
-    pthread_cond_signal(&empty); print(id, 0, 5, "uloc");
+    tmp=get(); print(id, "get ");
+    pthread_cond_signal(&empty); print(id, "uloc");
     pthread_mutex_unlock(&mutex);
     consumed_count++;
   }
@@ -108,16 +110,12 @@ void *consumer(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-  int producers=2;
-  int consumers=2;
-  buffer=new int [MAX_BUFFER];
-  for (int i=0; i<MAX_BUFFER; i++) {
+  buffer=new int [max_buffer];
+  for (int i=0; i<max_buffer; i++) {
     buffer[i]=EMPTY;
   }
   print_headers(producers, consumers);
-  struct timeval tic, toc;
-  gettimeofday(&tic, NULL);
-  pthread_t pid[MAX_THREADS], cid[MAX_THREADS];
+  pthread_t pid[num_threads], cid[num_threads];
   size_t thread_id=0;
   for (int i=0; i<producers; i++) {
     pthread_create(&pid[i], NULL, producer, (void *) thread_id);
@@ -132,23 +130,15 @@ int main(int argc, char *argv[]) {
   }
   for (int i=0; i<consumers; i++) {
     pthread_mutex_lock(&mutex);
-    while (count == MAX_BUFFER)
+    while (count == max_buffer)
       pthread_cond_wait(&empty, &mutex);
     put(END_OF_STREAM);
     pthread_cond_signal(&fill);
     pthread_mutex_unlock(&mutex);
   }
-
-  int counts[consumers];
   for (int i=0; i<consumers; i++) {
-    pthread_join(cid[i], (void **)&counts[i]);
+    pthread_join(cid[i], NULL);
   }
-  gettimeofday(&toc, NULL);
-  printf("\nConsumer consumption:\n");
-  for (int i=0; i<consumers; i++) {
-    printf("  C%d -> %d\n", i, counts[i]);
-  }
-  printf("\n");
-  printf("Total time: %.2f seconds\n", toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
+  delete[] buffer;
   return 0;
 }
