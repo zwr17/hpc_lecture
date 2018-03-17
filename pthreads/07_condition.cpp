@@ -7,57 +7,15 @@
 #include <sys/time.h>
 #include <string.h>
 
-void *Malloc(size_t size) {
-  void *p = malloc(size);
-  assert(p != NULL);
-  return p;
-}
-
-void Mutex_lock(pthread_mutex_t *m) {
-  int rc = pthread_mutex_lock(m);
-  assert(rc == 0);
-}
-
-void Mutex_unlock(pthread_mutex_t *m) {
-  int rc = pthread_mutex_unlock(m);
-  assert(rc == 0);
-}
-
-void Cond_wait(pthread_cond_t *c, pthread_mutex_t *m) {
-  int rc = pthread_cond_wait(c, m);
-  assert(rc == 0);
-}
-
-void Cond_signal(pthread_cond_t *c) {
-  int rc = pthread_cond_signal(c);
-  assert(rc == 0);
-}
-
-
-void Pthread_create(pthread_t *thread, const pthread_attr_t *attr,
-                    void *(*start_routine)(void*), void *arg) {
-  int rc = pthread_create(thread, attr, start_routine, arg);
-  assert(rc == 0);
-}
-
-void Pthread_join(pthread_t thread, void **value_ptr) {
-  int rc = pthread_join(thread, value_ptr);
-  assert(rc == 0);
-}
-
 #define MAX_THREADS (100)  // maximum number of producers/consumers
 
 int producers = 1;         // number of producers
 int consumers = 1;         // number of consumers
-
 int *buffer;               // the buffer itself: malloc in main()
 int max;                   // size of the producer/consumer buffer
-
 int use_ptr  = 0;          // tracks where next consume should come from
 int fill_ptr = 0;          // tracks where next produce should go to
 int num_full = 0;          // counts how many entries are full
-
-int loops;                 // number of items that each producer produces
 
 #define EMPTY         (-2) // buffer slot has nothing in it
 #define END_OF_STREAM (-1) // consumer who grabs this should exit
@@ -66,27 +24,6 @@ int loops;                 // number of items that each producer produces
 pthread_cond_t empty  = PTHREAD_COND_INITIALIZER;
 pthread_cond_t fill   = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t m     = PTHREAD_MUTEX_INITIALIZER;
-
-#define p0 do_pause(id, 1, 0, "p0");
-#define p1 do_pause(id, 1, 1, "p1");
-#define p2 do_pause(id, 1, 2, "p2");
-#define p3 do_pause(id, 1, 3, "p3");
-#define p4 do_pause(id, 1, 4, "p4");
-#define p5 do_pause(id, 1, 5, "p5");
-#define p6 do_pause(id, 1, 6, "p6");
-
-#define c0 do_pause(id, 0, 0, "c0");
-#define c1 do_pause(id, 0, 1, "c1");
-#define c2 do_pause(id, 0, 2, "c2");
-#define c3 do_pause(id, 0, 3, "c3");
-#define c4 do_pause(id, 0, 4, "c4");
-#define c5 do_pause(id, 0, 5, "c5");
-#define c6 do_pause(id, 0, 6, "c6");
-
-int producer_pause_times[MAX_THREADS][7];
-int consumer_pause_times[MAX_THREADS][7];
-
-// needed to avoid interleaving of print out from threads
 pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void do_print_headers() {
@@ -95,7 +32,7 @@ void do_print_headers() {
   for (i = 0; i < max; i++) {
     printf(" %3s ", "   ");
   }
-  printf("  ");
+  printf("   ");
 
   for (i = 0; i < producers; i++)
     printf("P%d ", i);
@@ -133,29 +70,22 @@ void do_print_buffer() {
 }
 
 void do_eos() {
-  Mutex_lock(&print_lock);
+  pthread_mutex_lock(&print_lock);
   do_print_buffer();
   printf("[main: added end-of-stream marker]\n");
-  Mutex_unlock(&print_lock);
+  pthread_mutex_unlock(&print_lock);
 }
 
 void do_pause(int thread_id, int is_producer, int pause_slot, const char *str) {
   int i;
-  Mutex_lock(&print_lock);
+  pthread_mutex_lock(&print_lock);
   do_print_buffer();
   for (i = 0; i < thread_id; i++) {
     printf("   ");
   }
   printf("%s\n", str);
-  Mutex_unlock(&print_lock);
+  pthread_mutex_unlock(&print_lock);
   sleep(0);
-}
-
-void ensure(int expression, const char *msg) {
-  if (expression == 0) {
-    fprintf(stderr, "%s\n", msg);
-    exit(1);
-  }
 }
 
 void parse_pause_string(char *str, const char *name, int expected_pieces,
@@ -180,8 +110,6 @@ void parse_pause_string(char *str, const char *name, int expected_pieces,
     int inner_index = 0;
     while (c) {
       int pause_amount = atoi(c);
-      ensure(inner_index < 7, "you specified a sleep string incorrectly... (too many comma-separated args)");
-      // printf("setting %s pause %d to %d\n", name, inner_index, pause_amount);
       pause_array[index][inner_index] = pause_amount;
       inner_index++;
 
@@ -204,8 +132,6 @@ void parse_pause_string(char *str, const char *name, int expected_pieces,
 }
 
 void do_fill(int value) {
-  // ensure empty before usage
-  ensure(buffer[fill_ptr] == EMPTY, "error: tried to fill a non-empty buffer");
   buffer[fill_ptr] = value;
   fill_ptr = (fill_ptr + 1) % max;
   num_full++;
@@ -213,7 +139,6 @@ void do_fill(int value) {
 
 int do_get() {
   int tmp = buffer[use_ptr];
-  ensure(tmp != EMPTY, "error: tried to get an empty buffer");
   buffer[use_ptr] = EMPTY;
   use_ptr = (use_ptr + 1) % max;
   num_full--;
@@ -221,18 +146,19 @@ int do_get() {
 }
 
 void *producer(void *arg) {
+  const int loops = 4;
   int id = (size_t) arg;
   // make sure each producer produces unique values
   int base = id * loops;
   int i;
-  for (i = 0; i < loops; i++) {   p0;
-    Mutex_lock(&m);             p1;
-    while (num_full == max) {   p2;
-      Cond_wait(&empty, &m);  p3;
+  for (i = 0; i < loops; i++) { do_pause(id, 1, 0, "p0");
+    pthread_mutex_lock(&m); do_pause(id, 1, 1, "p1");
+    while (num_full == max) { do_pause(id, 1, 2, "p2");
+      pthread_cond_wait(&empty, &m); do_pause(id, 1, 3, "p3");
     }
-    do_fill(base + i);          p4;
-    Cond_signal(&fill);         p5;
-    Mutex_unlock(&m);           p6;
+    do_fill(base + i); do_pause(id, 1, 4, "p4");
+    pthread_cond_signal(&fill); do_pause(id, 1, 5, "p5");
+    pthread_mutex_unlock(&m); do_pause(id, 1, 6, "p6");
   }
   return NULL;
 }
@@ -241,14 +167,14 @@ void *consumer(void *arg) {
   int id = (size_t) arg;
   int tmp = 0;
   int consumed_count = 0;
-  while (tmp != END_OF_STREAM) { c0;
-    Mutex_lock(&m);            c1;
-    while (num_full == 0) {    c2;
-      Cond_wait(&fill, &m);  c3;
+  while (tmp != END_OF_STREAM) { do_pause(id, 0, 0, "c0");
+    pthread_mutex_lock(&m); do_pause(id, 0, 1, "c1");
+    while (num_full == 0) { do_pause(id, 0, 2, "c2");
+      pthread_cond_wait(&fill, &m); do_pause(id, 0, 3, "c3");
     }
-    tmp = do_get();            c4;
-    Cond_signal(&empty);       c5;
-    Mutex_unlock(&m);          c6;
+    tmp = do_get(); do_pause(id, 0, 4, "c4");
+    pthread_cond_signal(&empty); do_pause(id, 0, 5, "c5");
+    pthread_mutex_unlock(&m); do_pause(id, 0, 6, "c6");
     consumed_count++;
   }
 
@@ -261,28 +187,9 @@ pthread_cond_t *fill_cv = &fill;
 pthread_cond_t *empty_cv = &empty;
 
 int main(int argc, char *argv[]) {
-  loops = 4;
   max = 2;
-  consumers = 1;
+  consumers = 2;
   producers = 1;
-
-  char *producer_pause_string = NULL;
-  char *consumer_pause_string = NULL;
-
-  int c;
-  while ((c = getopt (argc, argv, "l:m:p:c:P:C:vt")) != -1) {
-    switch (c) {
-    case 'p':
-      producers = atoi(optarg);
-      break;
-    case 'c':
-      consumers = atoi(optarg);
-      break;
-    }
-  }
-
-  assert(producers <= MAX_THREADS);
-  assert(consumers <= MAX_THREADS);
 
   buffer = new int [max];
   int i;
@@ -309,20 +216,20 @@ int main(int argc, char *argv[]) {
 
   // now wait for all PRODUCERS to finish
   for (i = 0; i < producers; i++) {
-    Pthread_join(pid[i], NULL);
+    pthread_join(pid[i], NULL);
   }
 
   // end case: when producers are all done
   // - put "consumers" number of END_OF_STREAM's in queue
   // - when consumer sees -1, it exits
   for (i = 0; i < consumers; i++) {
-    Mutex_lock(&m);
+    pthread_mutex_lock(&m);
     while (num_full == max)
-      Cond_wait(empty_cv, &m);
+      pthread_cond_wait(empty_cv, &m);
     do_fill(END_OF_STREAM);
     do_eos();
-    Cond_signal(fill_cv);
-    Mutex_unlock(&m);
+    pthread_cond_signal(fill_cv);
+    pthread_mutex_unlock(&m);
   }
 
   // now OK to wait for all consumers
