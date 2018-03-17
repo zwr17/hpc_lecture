@@ -88,49 +88,6 @@ void do_pause(int thread_id, int is_producer, int pause_slot, const char *str) {
   sleep(0);
 }
 
-void parse_pause_string(char *str, const char *name, int expected_pieces,
-                        int pause_array[MAX_THREADS][7]) {
-  int index = 0;
-  char *copy_entire = strdup(str);
-  char *outer_marker;
-  int colon_count = 0;
-  char *p = strtok_r(copy_entire, ":", &outer_marker);
-  while (p) {
-    // init array: default sleep is 0
-    int i;
-    for (i = 0; i < 7; i++)
-      pause_array[index][i] = 0;
-
-    // for each piece, comma separated
-    char *inner_marker;
-    char *copy_piece = strdup(p);
-    char *c = strtok_r(copy_piece, ",", &inner_marker);
-    int comma_count = 0;
-
-    int inner_index = 0;
-    while (c) {
-      int pause_amount = atoi(c);
-      pause_array[index][inner_index] = pause_amount;
-      inner_index++;
-
-      c = strtok_r(NULL, ",", &inner_marker);
-      comma_count++;
-    }
-    free(copy_piece);
-    index++;
-
-    // continue with colon separated list
-    p = strtok_r(NULL, ":", &outer_marker);
-    colon_count++;
-  }
-
-  free(copy_entire);
-  if (expected_pieces != colon_count) {
-    fprintf(stderr, "Error: expected %d %s in sleep specification, got %d\n", expected_pieces, name, colon_count);
-    exit(1);
-  }
-}
-
 void do_fill(int value) {
   buffer[fill_ptr] = value;
   fill_ptr = (fill_ptr + 1) % max;
