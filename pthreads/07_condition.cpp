@@ -26,7 +26,7 @@ pthread_cond_t fill   = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t m     = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 
-void do_print_headers() {
+void print_headers() {
   int i;
   printf("%3s ", "NF");
   for (i = 0; i < max; i++) {
@@ -41,7 +41,7 @@ void do_print_headers() {
   printf("\n");
 }
 
-void do_print_pointers(int index) {
+void print_pointers(int index) {
   if (use_ptr == index && fill_ptr == index) {
     printf("*");
   } else if (use_ptr == index) {
@@ -53,11 +53,11 @@ void do_print_pointers(int index) {
   }
 }
 
-void do_print_buffer() {
+void print_buffer() {
   int i;
   printf("%3d [", num_full);
   for (i = 0; i < max; i++) {
-    do_print_pointers(i);
+    print_pointers(i);
     if (buffer[i] == EMPTY) {
       printf("%3s ", "---");
     } else if (buffer[i] == END_OF_STREAM) {
@@ -69,17 +69,17 @@ void do_print_buffer() {
   printf("] ");
 }
 
-void do_eos() {
+void eos() {
   pthread_mutex_lock(&print_lock);
-  do_print_buffer();
+  print_buffer();
   printf("[main: added end-of-stream marker]\n");
   pthread_mutex_unlock(&print_lock);
 }
 
-void do_pause(int thread_id, int is_producer, int pause_slot, const char *str) {
+void pause(int thread_id, int is_producer, int pause_slot, const char *str) {
   int i;
   pthread_mutex_lock(&print_lock);
-  do_print_buffer();
+  print_buffer();
   for (i = 0; i < thread_id; i++) {
     printf("   ");
   }
@@ -88,13 +88,13 @@ void do_pause(int thread_id, int is_producer, int pause_slot, const char *str) {
   sleep(0);
 }
 
-void do_fill(int value) {
+void put(int value) {
   buffer[fill_ptr] = value;
   fill_ptr = (fill_ptr + 1) % max;
   num_full++;
 }
 
-int do_get() {
+int get() {
   int tmp = buffer[use_ptr];
   buffer[use_ptr] = EMPTY;
   use_ptr = (use_ptr + 1) % max;
@@ -108,14 +108,14 @@ void *producer(void *arg) {
   // make sure each producer produces unique values
   int base = id * loops;
   int i;
-  for (i = 0; i < loops; i++) { do_pause(id, 1, 0, "p0");
-    pthread_mutex_lock(&m); do_pause(id, 1, 1, "p1");
-    while (num_full == max) { do_pause(id, 1, 2, "p2");
-      pthread_cond_wait(&empty, &m); do_pause(id, 1, 3, "p3");
+  for (i = 0; i < loops; i++) { pause(id, 1, 0, "p0");
+    pthread_mutex_lock(&m); pause(id, 1, 1, "p1");
+    while (num_full == max) { pause(id, 1, 2, "p2");
+      pthread_cond_wait(&empty, &m); pause(id, 1, 3, "p3");
     }
-    do_fill(base + i); do_pause(id, 1, 4, "p4");
-    pthread_cond_signal(&fill); do_pause(id, 1, 5, "p5");
-    pthread_mutex_unlock(&m); do_pause(id, 1, 6, "p6");
+    put(base + i); pause(id, 1, 4, "p4");
+    pthread_cond_signal(&fill); pause(id, 1, 5, "p5");
+    pthread_mutex_unlock(&m); pause(id, 1, 6, "p6");
   }
   return NULL;
 }
@@ -124,14 +124,14 @@ void *consumer(void *arg) {
   int id = (size_t) arg;
   int tmp = 0;
   int consumed_count = 0;
-  while (tmp != END_OF_STREAM) { do_pause(id, 0, 0, "c0");
-    pthread_mutex_lock(&m); do_pause(id, 0, 1, "c1");
-    while (num_full == 0) { do_pause(id, 0, 2, "c2");
-      pthread_cond_wait(&fill, &m); do_pause(id, 0, 3, "c3");
+  while (tmp != END_OF_STREAM) { pause(id, 0, 0, "c0");
+    pthread_mutex_lock(&m); pause(id, 0, 1, "c1");
+    while (num_full == 0) { pause(id, 0, 2, "c2");
+      pthread_cond_wait(&fill, &m); pause(id, 0, 3, "c3");
     }
-    tmp = do_get(); do_pause(id, 0, 4, "c4");
-    pthread_cond_signal(&empty); do_pause(id, 0, 5, "c5");
-    pthread_mutex_unlock(&m); do_pause(id, 0, 6, "c6");
+    tmp = get(); pause(id, 0, 4, "c4");
+    pthread_cond_signal(&empty); pause(id, 0, 5, "c5");
+    pthread_mutex_unlock(&m); pause(id, 0, 6, "c6");
     consumed_count++;
   }
 
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
     buffer[i] = EMPTY;
   }
 
-  do_print_headers();
+  print_headers();
 
   struct timeval tic, toc;
   gettimeofday(&tic, NULL);
@@ -183,8 +183,8 @@ int main(int argc, char *argv[]) {
     pthread_mutex_lock(&m);
     while (num_full == max)
       pthread_cond_wait(empty_cv, &m);
-    do_fill(END_OF_STREAM);
-    do_eos();
+    put(END_OF_STREAM);
+    eos();
     pthread_cond_signal(fill_cv);
     pthread_mutex_unlock(&m);
   }
