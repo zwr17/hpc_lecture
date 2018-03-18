@@ -3,7 +3,7 @@
 
 int value=0;
 pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
-pthread_cond_t fill=PTHREAD_COND_INITIALIZER;
+pthread_cond_t full=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
 void print(int thread_id, const char *str) {
@@ -27,7 +27,7 @@ void get() {
 void *producer(void *arg) {
   pthread_mutex_lock(&mutex); print(0, "lock  ");
   put(); print(0, "put   ");
-  pthread_cond_signal(&fill); print(0, "unlock");
+  pthread_cond_signal(&full); print(0, "unlock");
   pthread_mutex_unlock(&mutex);
   return NULL;
 }
@@ -35,7 +35,7 @@ void *producer(void *arg) {
 void *consumer(void *arg) {
   pthread_mutex_lock(&mutex); print(1, "lock  ");
   while (value == 0) { print(1, "empty "); print(1, "unlock");
-    pthread_cond_wait(&fill, &mutex); print(1, "resume"); print(1, "lock  ");
+    pthread_cond_wait(&full, &mutex); print(1, "resume"); print(1, "lock  ");
   }
   get(); print(1, "get   "); print(1, "unlock");
   pthread_mutex_unlock(&mutex);

@@ -5,7 +5,7 @@ const int end=-1;
 const int loops=2;
 int value=0;
 pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
-pthread_cond_t fill=PTHREAD_COND_INITIALIZER;
+pthread_cond_t full=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
 void print(int thread_id, const char *str) {
@@ -39,7 +39,7 @@ void *producer(void *arg) {
       pthread_cond_wait(&empty, &mutex); print(0, "resume"); print(0, "lock  ");
     }
     put(1); print(0, "put   ");
-    pthread_cond_signal(&fill); print(0, "unlock");
+    pthread_cond_signal(&full); print(0, "unlock");
     pthread_mutex_unlock(&mutex);
   }
   return NULL;
@@ -50,7 +50,7 @@ void *consumer(void *arg) {
   while (tmp != end) {
     pthread_mutex_lock(&mutex); print(1, "lock  ");
     while (value == 0) { print(1, "empty "); print(1, "unlock");
-      pthread_cond_wait(&fill, &mutex); print(1, "resume"); print(1, "lock  ");
+      pthread_cond_wait(&full, &mutex); print(1, "resume"); print(1, "lock  ");
     }
     tmp=get(); print(1, "get   ");
     pthread_cond_signal(&empty); print(1, "unlock");
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
   while (value != 0)
     pthread_cond_wait(&empty, &mutex);
   put(end);
-  pthread_cond_signal(&fill);
+  pthread_cond_signal(&full);
   pthread_mutex_unlock(&mutex);
   pthread_join(cid, NULL);
   return 0;

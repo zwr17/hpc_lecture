@@ -12,7 +12,7 @@ int end_p=0;
 int count=0;
 int *buffer;
 pthread_cond_t empty=PTHREAD_COND_INITIALIZER;
-pthread_cond_t fill=PTHREAD_COND_INITIALIZER;
+pthread_cond_t full=PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 
 void print_headers(int producers, int consumers) {
@@ -75,7 +75,7 @@ void *producer(void *arg) {
       pthread_cond_wait(&empty, &mutex); print(id, "resume"); print(id, "lock  ");
     }
     put(base+i); print(id, "put   ");
-    pthread_cond_signal(&fill); print(id, "unlock");
+    pthread_cond_signal(&full); print(id, "unlock");
     pthread_mutex_unlock(&mutex);
   }
   return NULL;
@@ -87,7 +87,7 @@ void *consumer(void *arg) {
   while (tmp != end) {
     pthread_mutex_lock(&mutex); print(id, "lock  ");
     while (count == 0) { print(id, "empty "); print(id, "unlock");
-      pthread_cond_wait(&fill, &mutex); print(id, "resume"); print(id, "lock  ");
+      pthread_cond_wait(&full, &mutex); print(id, "resume"); print(id, "lock  ");
     }
     tmp=get(); print(id, "get   ");
     pthread_cond_signal(&empty); print(id, "unlock");
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
     while (count == max_buffer)
       pthread_cond_wait(&empty, &mutex);
     put(end);
-    pthread_cond_signal(&fill);
+    pthread_cond_signal(&full);
     pthread_mutex_unlock(&mutex);
   }
   for (int i=0; i<consumers; i++) {
