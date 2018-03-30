@@ -3,8 +3,7 @@
 
 void* print(void*) {
   static int t=0;
-  printf("%d\n", t);
-  t++;
+  printf("%d\n", t++);
 }
 
 int main() {
