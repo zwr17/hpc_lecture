@@ -2,7 +2,7 @@
 #include <omp.h>
 int main() {
   int x = 2;
-#pragma omp parallel num_threads(2) shared(x)
+#pragma omp parallel shared(x)
   {
     if (omp_get_thread_num() == 0) {
       x = 5;
