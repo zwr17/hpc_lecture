@@ -4,18 +4,12 @@
 #include <sys/time.h>
 #include <xmmintrin.h>
 
-double get_time() {
-  struct timeval tv;
-  gettimeofday(&tv,NULL);
-  return (double)(tv.tv_sec+tv.tv_usec*1e-6);
-}
-
 int main() {
 // Initialize
   int N = 1 << 16;
   float OPS = 20. * N * N * 1e-9;
   float EPS2 = 1e-6;
-  double tic, toc;
+  struct timeval tic, toc;
   float * x = (float*) malloc(N * sizeof(float));
   float * y = (float*) malloc(N * sizeof(float));
   float * z = (float*) malloc(N * sizeof(float));
@@ -33,7 +27,7 @@ int main() {
   printf("N      : %d\n",N);
 
 // SSE
-  tic = get_time();
+  gettimeofday(&tic, NULL);
 #pragma omp parallel for
   for (int i=0; i<N; i+=4) {
     __m128 pi = _mm_setzero_ps();
@@ -78,12 +72,13 @@ int main() {
     _mm_store_ps(ay+i, ayi);
     _mm_store_ps(az+i, azi);
   }
-  toc = get_time();
-  printf("SSE    : %e s : %lf GFlops\n",toc-tic, OPS/(toc-tic));
+  gettimeofday(&toc, NULL);
+  double diff = toc.tv_sec - tic.tv_sec + (toc.tv_usec - tic.tv_usec) * 1e-6;
+  printf("SSE    : %e s : %lf GFlops\n", diff, OPS/diff);
 
 // No SSE
+  gettimeofday(&tic, NULL);
   float pdiff = 0, pnorm = 0, adiff = 0, anorm = 0;
-  tic = get_time();
 #pragma omp parallel for reduction(+: pdiff, pnorm, adiff, anorm)
   for (int i=0; i<N; i++) {
     float pi = 0;
@@ -112,8 +107,9 @@ int main() {
       + (az[i] - azi) * (az[i] - azi);
     anorm += axi * axi + ayi * ayi + azi * azi;
   }
-  toc = get_time();
-  printf("No SIMD: %e s : %lf GFlops\n",toc-tic, OPS/(toc-tic));
+  gettimeofday(&toc, NULL);
+  diff = toc.tv_sec - tic.tv_sec + (toc.tv_usec - tic.tv_usec) * 1e-6;
+  printf("No SIMD: %e s : %lf GFlops\n", diff, OPS/diff);
   printf("P ERR  : %e\n",sqrt(pdiff/pnorm));
   printf("A ERR  : %e\n",sqrt(adiff/anorm));
 

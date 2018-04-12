@@ -3,19 +3,12 @@
 #include <stdio.h>
 #include <sys/time.h>
 
-double get_time() {
-  struct timeval tv;
-  gettimeofday(&tv,NULL);
-  return (double)(tv.tv_sec+tv.tv_usec*1e-6);
-}
-
 int main() {
 // Initialize
   int N = 1 << 16;
-  int i, j;
   float OPS = 20. * N * N * 1e-9;
   float EPS2 = 1e-6;
-  double tic, toc;
+  struct timeval tic, toc;
   float * x = (float*) malloc(N * sizeof(float));
   float * y = (float*) malloc(N * sizeof(float));
   float * z = (float*) malloc(N * sizeof(float));
@@ -24,7 +17,7 @@ int main() {
   float * ax = (float*) malloc(N * sizeof(float));
   float * ay = (float*) malloc(N * sizeof(float));
   float * az = (float*) malloc(N * sizeof(float));
-  for (i=0; i<N; i++) {
+  for (int i=0; i<N; i++) {
     x[i] = drand48();
     y[i] = drand48();
     z[i] = drand48();
@@ -33,9 +26,9 @@ int main() {
   printf("N      : %d\n",N);
 
 // No SSE
-  tic = get_time();
-#pragma omp parallel for private(j)
-  for (i=0; i<N; i++) {
+  gettimeofday(&tic, NULL);
+#pragma omp parallel for
+  for (int i=0; i<N; i++) {
     float pi = 0;
     float axi = 0;
     float ayi = 0;
@@ -43,7 +36,7 @@ int main() {
     float xi = x[i];
     float yi = y[i];
     float zi = z[i];
-    for (j=0; j<N; j++) {
+    for (int j=0; j<N; j++) {
       float dx = x[j] - xi;
       float dy = y[j] - yi;
       float dz = z[j] - zi;
@@ -60,8 +53,9 @@ int main() {
     ay[i] = ayi;
     az[i] = azi;
   }
-  toc = get_time();
-  printf("No SIMD: %e s : %lf GFlops\n",toc-tic, OPS/(toc-tic));
+  gettimeofday(&toc, NULL);
+  double diff = toc.tv_sec - tic.tv_sec + (toc.tv_usec - tic.tv_usec) * 1e-6;
+  printf("No SIMD: %e s : %lf GFlops\n", diff, OPS/diff);
 
 // DEALLOCATE
   free(x);
