@@ -12,7 +12,7 @@ double get_time() {
 
 int main() {
   // Initialize
-  int N = 1 << 18;
+  int N = 1 << 16;
   int NALIGN = 64;
   float OPS = 20. * N * N * 1e-9;
   float EPS2 = 1e-6;
