@@ -14,7 +14,6 @@ int main() {
   // Initialize
   int N = 1 << 18;
   int NALIGN = 64;
-  int i, j;
   float OPS = 20. * N * N * 1e-9;
   float EPS2 = 1e-6;
   double tic, toc;
@@ -27,7 +26,7 @@ int main() {
   float * ay = (float*) _mm_malloc(N * sizeof(float), NALIGN);
   float * az = (float*) _mm_malloc(N * sizeof(float), NALIGN);
 #pragma omp parallel for
-  for (i=0; i<N; i++) {
+  for (int i=0; i<N; i++) {
     x[i] = drand48();
     y[i] = drand48();
     z[i] = drand48();
@@ -37,14 +36,14 @@ int main() {
   printf("N      : %d\n",N);
 
   float pdiff = 0, pnorm = 0, adiff = 0, anorm = 0;
-#pragma omp parallel private(j) reduction(+: pdiff, pnorm, adiff, anorm)
+#pragma omp parallel reduction(+: pdiff, pnorm, adiff, anorm)
   {
 #pragma omp single
     {
       tic = get_time();
     }
 #pragma omp for schedule(dynamic)
-    for (i=0; i<N; i+=16) {
+    for (int i=0; i<N; i+=16) {
       __m512 pi = _mm512_setzero_ps();
       __m512 axi = _mm512_setzero_ps();
       __m512 ayi = _mm512_setzero_ps();
@@ -52,7 +51,7 @@ int main() {
       __m512 xi = _mm512_load_ps(x+i);
       __m512 yi = _mm512_load_ps(y+i);
       __m512 zi = _mm512_load_ps(z+i);
-      for (j=0; j<N; j++) {
+      for (int j=0; j<N; j++) {
 	__m512 xj = _mm512_set1_ps(x[j]);
 	xj = _mm512_sub_ps(xj, xi);
 	__m512 yj = _mm512_set1_ps(y[j]);
@@ -85,7 +84,7 @@ int main() {
       tic = get_time();
     }
 #pragma omp for
-    for (i=0; i<N; i++) {
+    for (int i=0; i<N; i++) {
       float pi = 0;
       float axi = 0;
       float ayi = 0;
@@ -93,7 +92,7 @@ int main() {
       float xi = x[i];
       float yi = y[i];
       float zi = z[i];
-      for (j=0; j<N; j++) {
+      for (int j=0; j<N; j++) {
 	float dx = x[j] - xi;
 	float dy = y[j] - yi;
 	float dz = z[j] - zi;
@@ -110,7 +109,7 @@ int main() {
       adiff += (ax[i] - axi) * (ax[i] - axi)
 	+ (ay[i] - ayi) * (ay[i] - ayi)
 	+ (az[i] - azi) * (az[i] - azi);
-      anorm += axi * axi + ayi * ayi + azi * azi;    
+      anorm += axi * axi + ayi * ayi + azi * azi;
     }
   }
   toc = get_time();
