@@ -2,8 +2,9 @@
 
 void print() {
   static int t=0;
-  printf("%d\n", t);
   t++;
+#pragma omp barrier
+  printf("%d\n", t);
 }
 
 int main() {

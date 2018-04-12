@@ -1,6 +1,8 @@
 #include "mpi.h"
 #include <cstdio>
-int main(int argc, char ** argv) {
+int main() {
+  int argc;
+  char ** argv;
   MPI_Init(&argc, &argv);
   int mpisize, mpirank;
   MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
