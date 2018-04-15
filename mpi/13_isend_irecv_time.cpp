@@ -24,7 +24,7 @@ int main(int argc, char ** argv) {
     MPI_Isend(send, size, MPI_INT, send_rank, 0, MPI_COMM_WORLD, &request[1]);
     MPI_Waitall(2, request, status);
     gettimeofday(&toc, NULL);
-    printf("%d %lf\n",size,toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
+    if(mpirank==0) printf("%d %lf\n",size,toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
   }
   delete[] send;
   delete[] recv;
