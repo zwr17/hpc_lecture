@@ -30,7 +30,7 @@ int main() {
 
 // AVX512
   gettimeofday(&tic, NULL);
-#pragma omp for schedule(dynamic)
+#pragma omp parallel for schedule(dynamic)
   for (int i=0; i<N; i+=16) {
     __m512 pi = _mm512_setzero_ps();
     __m512 axi = _mm512_setzero_ps();

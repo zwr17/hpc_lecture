@@ -1,5 +1,5 @@
 #include <cstdio>
-#include <zmmintrin.h>
+#include <immintrin.h>
 
 int main() {
   double a[8];
