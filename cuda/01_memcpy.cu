@@ -5,8 +5,8 @@ __global__ void kernel(float *a) {
 }
 
 int main(void) {
-  const int size = 4 * sizeof(float);
-  float *a; *b = (float*) malloc(size);
+  int size = 4 * sizeof(float);
+  float *a, *b = (float*) malloc(size);
   cudaMalloc(&a, size);
   kernel<<<1,4>>>(a);
   cudaMemcpy(b, a, size, cudaMemcpyDeviceToHost);

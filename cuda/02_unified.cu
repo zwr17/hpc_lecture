@@ -1,12 +1,12 @@
 #include <cstdio>
 
 __global__ void kernel(float *a) {
-  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
   a[i] = 10 * blockIdx.x + threadIdx.x;
 }
 
 int main(void) {
-  const int size = 4 * sizeof(float);
+  int size = 4 * sizeof(float);
   float *a;
   cudaMallocManaged(&a, size);
   kernel<<<2,2>>>(a);
