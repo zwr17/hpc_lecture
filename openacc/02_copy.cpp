@@ -4,7 +4,7 @@
 int main(void) {
   int size = 4 * sizeof(float);
   float *a = (float*) malloc(size);
-#pragma acc kernels
+#pragma acc kernels loop gang(2) vector(2) copyout(a)
   for (int i=0; i<4; i++) a[i] = i;
   for (int i=0; i<4; i++) printf("%f\n",a[i]);
   free(a);

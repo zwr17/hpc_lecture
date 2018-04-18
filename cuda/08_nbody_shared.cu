@@ -47,7 +47,6 @@ __global__ void GPUkernel(int N, float * x, float * y, float * z, float * m,
 int main() {
 // Initialize
   int N = 1 << 16;
-  int i, j;
   float OPS = 20. * N * N * 1e-9;
   float EPS2 = 1e-6;
   int size = N * sizeof(float);
@@ -62,7 +61,7 @@ int main() {
   cudaMallocManaged(&ax, size);
   cudaMallocManaged(&ay, size);
   cudaMallocManaged(&az, size);
-  for (i=0; i<N; i++) {
+  for (int i=0; i<N; i++) {
     x[i] = drand48();
     y[i] = drand48();
     z[i] = drand48();
@@ -81,7 +80,7 @@ int main() {
   float pdiff = 0, pnorm = 0, adiff = 0, anorm = 0;
   gettimeofday(&tic, NULL);
 #pragma omp parallel for private(j) reduction(+: pdiff, pnorm, adiff, anorm)
-  for (i=0; i<N; i++) {
+  for (int i=0; i<N; i++) {
     float pi = 0;
     float axi = 0;
     float ayi = 0;
@@ -89,7 +88,7 @@ int main() {
     float xi = x[i];
     float yi = y[i];
     float zi = z[i];
-    for (j=0; j<N; j++) {
+    for (int j=0; j<N; j++) {
       float dx = x[j] - xi;
       float dy = y[j] - yi;
       float dz = z[j] - zi;
