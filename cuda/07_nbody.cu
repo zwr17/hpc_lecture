@@ -68,7 +68,7 @@ int main() {
 // No CUDA
   float pdiff = 0, pnorm = 0, adiff = 0, anorm = 0;
   gettimeofday(&tic, NULL);
-#pragma omp parallel for private(j) reduction(+: pdiff, pnorm, adiff, anorm)
+#pragma omp parallel for reduction(+: pdiff, pnorm, adiff, anorm)
   for (int i=0; i<N; i++) {
     float pi = 0;
     float axi = 0;

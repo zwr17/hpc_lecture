@@ -3,7 +3,7 @@
 __inline__ __device__
 int warpSum(float sum) {
   for (int offset=16; offset>0; offset >>= 1)
-    sum += __shfl_down_sync(0xffffffff, sum, offset);
+    sum += __shfl_down(sum, offset);
   return sum;
 }
 
