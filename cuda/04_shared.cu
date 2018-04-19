@@ -2,7 +2,7 @@
 
 __global__ void kernel(float *a) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ b[2];
+  __shared__ float b[2];
   __syncthreads();
   b[threadIdx.x] = 10 * blockIdx.x + threadIdx.x;
   __syncthreads();
