@@ -3,11 +3,6 @@
 #include <cstdio>
 #include <immintrin.h>
 #include <sys/time.h>
-double get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
-}
 
 int main(int argc, char **argv) {
   int N = atoi(argv[1]);
@@ -24,23 +19,24 @@ int main(int argc, char **argv) {
       C[i][j] = 0;
     }
   }
-  double tic = get_time();
+  struct timeval tic, toc;
+  gettimeofday(&tic, NULL);
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
-      __m128 Aik = _mm_set1_ps(A[i][k]);
-      for (int j=0; j<N; j+=4) {
-        __m128 Cij = _mm_load_ps(&C[i][j]);
-        __m128 Bkj = _mm_load_ps(&B[k][j]);
-        Bkj = _mm_mul_ps(Aik, Bkj);
-        Cij = _mm_add_ps(Bkj, Cij);
-        _mm_store_ps(&C[i][j], Cij);
+      __m256 Aik = _mm256_broadcast_ss(&A[i][k]);
+      for (int j=0; j<N; j+=8) {
+        __m256 Cij = _mm256_loadu_ps(&C[i][j]);
+        __m256 Bkj = _mm256_loadu_ps(&B[k][j]);
+        Cij = _mm256_fmadd_ps(Aik, Bkj, Cij);
+        _mm256_storeu_ps(&C[i][j], Cij);
       }
     }
   }
-  double toc = get_time();
-  printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
-  tic = get_time();
+  gettimeofday(&toc, NULL);
+  double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
+  gettimeofday(&tic, NULL);
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
@@ -49,8 +45,9 @@ int main(int argc, char **argv) {
       }
     }
   }
-  toc = get_time();
-  printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
+  gettimeofday(&toc, NULL);
+  time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
   float err = 0;
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {

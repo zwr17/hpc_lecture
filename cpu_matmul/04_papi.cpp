@@ -4,11 +4,6 @@
 #include <immintrin.h>
 #include "pcounter.h"
 #include <sys/time.h>
-double get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
-}
 
 int main(int argc, char **argv) {
   int N = atoi(argv[1]);
@@ -26,7 +21,8 @@ int main(int argc, char **argv) {
     }
   }
   startPAPI();
-  double tic = get_time();
+  struct timeval tic, toc;
+  gettimeofday(&tic, NULL);
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
@@ -39,10 +35,10 @@ int main(int argc, char **argv) {
       }
     }
   }
-  double toc = get_time();
-  stopPAPI();
-  printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
-  tic = get_time();
+  gettimeofday(&toc, NULL);
+  double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
+  gettimeofday(&tic, NULL);
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
@@ -55,8 +51,9 @@ int main(int argc, char **argv) {
       }
     }
   }
-  toc = get_time();
-  printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
+  gettimeofday(&toc, NULL);
+  time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
   float err = 0;
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {

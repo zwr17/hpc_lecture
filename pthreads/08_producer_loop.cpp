@@ -59,7 +59,7 @@ void *consumer(void *arg) {
   return NULL;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
   printf("    Produce Consume  \n");
   pthread_t pid, cid;
   pthread_create(&pid, NULL, producer, NULL);

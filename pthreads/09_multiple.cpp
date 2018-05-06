@@ -74,7 +74,7 @@ void *consumer(void *arg) {
   return NULL;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
   print_headers(producers, consumers);
   pthread_t pid[num_threads], cid[num_threads];
   size_t thread_id=0;

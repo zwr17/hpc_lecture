@@ -5,18 +5,14 @@
 
 #define M 512
 
-double get_time() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return double(tv.tv_sec)+double(tv.tv_usec)*1e-6;
-}
-
 __global__ void matmul(float *A, float *B, float *C, int N) {
-  int i = blockIdx.x / (N / M);
-  int j = threadIdx.x + blockDim.x * (blockIdx.x % (N / M));
+  int i = blockIdx.y;
+  int j = threadIdx.x + blockDim.x * blockIdx.x;
+  float sum = 0.0f;
   for (int k=0; k<N; k++) {
-    C[N*i+j] += A[N*i+k] * B[N*k+j];
+    sum += A[N*i+k] * B[N*k+j];
   }
+  C[N*i+j] = sum;
 }
 
 int main(int argc, char **argv) {
@@ -37,18 +33,22 @@ int main(int argc, char **argv) {
       h_C[N*i+j] = 0;
     }
   }
-  double tic = get_time();
   cudaMemcpy(d_A, h_A, size, cudaMemcpyHostToDevice);
   cudaMemcpy(d_B, h_B, size, cudaMemcpyHostToDevice);
   cudaMemcpy(d_C, h_C, size, cudaMemcpyHostToDevice);
-  matmul<<<N*N/M,M>>>(d_A, d_B, d_C, N);
+  dim3 grid(N/M, N);
+  struct timeval tic, toc;
+  gettimeofday(&tic, NULL);
+  matmul<<<grid,M>>>(d_A, d_B, d_C, N);
+  cudaDeviceSynchronize();
+  gettimeofday(&toc, NULL);
+  double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
   cudaMemcpy(h_A, d_A, size, cudaMemcpyDeviceToHost);
   cudaMemcpy(h_B, d_B, size, cudaMemcpyDeviceToHost);
   cudaMemcpy(h_C, d_C, size, cudaMemcpyDeviceToHost);
 
-  double toc = get_time();
-  printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
-  tic = get_time();
+  gettimeofday(&tic, NULL);
 #pragma omp parallel for
   for (int i=0; i<N; i++) {
     for (int k=0; k<N; k++) {
@@ -57,8 +57,9 @@ int main(int argc, char **argv) {
       }
     }
   }
-  toc = get_time();
-  printf("N=%d: %lf s (%lf GFlops)\n",N,toc-tic,2.*N*N*N/(toc-tic)/1e9);
+  gettimeofday(&toc, NULL);
+  time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
   float err = 0;
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {

@@ -46,7 +46,7 @@ inline void printPAPI() {
   if (!PAPIEventCodes.empty()) {                            // If PAPI events are set and verbose is true
     printf("--- %-16s ------------\n", "PAPI events");      //  Print title
     for (size_t i=0; i<PAPIEventCodes.size(); i++) {        //  Loop over PAPI events
-      printf("%-20s : %ld\n", PAPIEventNames[i], PAPIEventValues[i]); // Print PAPI event values
+      printf("%-20s : %lld\n", PAPIEventNames[i], PAPIEventValues[i]); // Print PAPI event values
     }                                                       //  End loop over PAPI events
   }                                                         // End if for PAPI events
 }

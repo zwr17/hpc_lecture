@@ -96,7 +96,7 @@ void *consumer(void *arg) {
   return NULL;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
   queue=new int [max_queue];
   for (int i=0; i<max_queue; i++) {
     queue[i]=0;
