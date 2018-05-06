@@ -24,7 +24,6 @@ __global__ void matmul(float *A, float *B, float *C, int N) {
       else s_A[threadIdx.x] = 0.0;
       __syncthreads();
       for (int k=ks; k<min(ks+M,N); k++) {
-        if(i==0&&j==32) printf("%d %f %f\n",k,A[N*i+k],s_A[k-ks]);
         sum += s_A[k-ks] * B[N*k+j];
       }
     }
