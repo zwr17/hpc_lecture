@@ -72,7 +72,7 @@ inline void packB_kcxnc_d(int n, int k, float *XB, int ldXB, int offsetb, float 
   }
 }
 
-#if 0
+#if 1
 #include "micro_kernel.h"
 #else
 void micro_kernel(int kc, float* A, float* B, float* C, dim_t ldc, aux_t* aux) {
@@ -104,7 +104,7 @@ void macro_kernel(int mc, int nc, int kc, float *packA, float *packB, float *C, 
 }
 
 void bl_sgemm(int m, int n, int k, float *XA, int lda, float *XB, int ldb, float *C, int ldc) {
-  int bl_ic_nt = 1;
+  int bl_ic_nt = 16;
   char *str = getenv( "BLISLAB_IC_NT" );
   if ( str != NULL ) {
     bl_ic_nt = (int)strtol(str, NULL, 10);
@@ -192,16 +192,14 @@ int main(int argc, char *argv[]) {
       ref_rectime = ref_time < ref_rectime ? ref_time : ref_rectime;
     }
   }
-  /*
   for (int i=0; i<m; i++) {
     for (int j=0; j<n; j++) {
-      if (fabs(C(i,j) - C_ref(i,j)) > 1e-6) {
+      if (fabs(C(i,j) - C_ref(i,j)) > 1) {
         printf( "C[ %d ][ %d ] != C_ref, %E, %E\n", i, j, C(i,j), C_ref(i,j));
-        //break;
+        break;
       }
     }
   }
-  */
   float flops = (m * n / (1000.0 * 1000.0 * 1000.0)) * (2 * k);
   printf("%5d\t %5d\t %5d\t %5.2lf\t %5.2lf\n",
          m, n, k, flops / bl_sgemm_rectime, flops / ref_rectime);

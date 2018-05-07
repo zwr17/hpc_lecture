@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
   float alpha = 1.0;
   float beta = 0.0;
   char T = 'N';
-  sgemm_(&T,&T, &N, &N, &N, &alpha, B, &N, A, &N, &beta, C, &N);
+  sgemm_(&T, &T, &N, &N, &N, &alpha, B, &N, A, &N, &beta, C, &N);
   gettimeofday(&toc, NULL);
   double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
   printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
