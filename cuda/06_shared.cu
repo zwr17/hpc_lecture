@@ -1,6 +1,6 @@
 #include <cstdio>
 
-__global__ void kernel(float *a, float *sum, int n) {
+__global__ void kernel(float *a, int n) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i >= n) return;
   __shared__ float b[1024];
@@ -10,21 +10,21 @@ __global__ void kernel(float *a, float *sum, int n) {
   float c = 0;
   for (int j=0; j<blockDim.x; j++)
     c += b[j];
-  if ((threadIdx.x & (blockDim.x-1)) == 0) atomicAdd(sum, c);
+  if ((threadIdx.x & (blockDim.x-1)) == 0) atomicAdd(&a[0], c);
 }
 
 int main(void) {
   int n = 2047;
   int m = 1024;
   int size = n * sizeof(float);
-  float *a, *sum;
-  cudaMallocManaged(&a, size);
-  cudaMallocManaged(&sum, sizeof(float));
-  for (int i=0; i<n; i++) a[i] = 1;
-  kernel<<<(n+m-1)/m,m>>>(a,sum,n);
-  cudaDeviceSynchronize();
-  printf("%f\n",*sum);
+  float *a, *b = (float*) malloc(size);
+  cudaMalloc(&a, size);
+  for (int i=0; i<n; i++) b[i] = 1;
+  cudaMemcpy(a, b, size, cudaMemcpyHostToDevice);
+  kernel<<<(n+m-1)/m,m>>>(a,n);
+  cudaMemcpy(b, a, size, cudaMemcpyDeviceToHost);
+  printf("%f\n",b[0]);
   cudaFree(a);
-  cudaFree(sum);
+  free(b);
   return 0;
 }
