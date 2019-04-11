@@ -11,6 +11,7 @@ int main(int argc, char ** argv) {
   }
   printf("rank%d: before [%d %d %d %d]\n",mpirank,data[0],data[1],data[2],data[3]);
   MPI_Bcast(data, 4, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
   printf("rank%d: after  [%d %d %d %d]\n",mpirank,data[0],data[1],data[2],data[3]);
   MPI_Finalize();
 }
