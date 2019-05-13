@@ -2,8 +2,9 @@
 #include <cstdlib>
 #include <cstdio>
 #include <sys/time.h>
-#include <cblas.h>
-#include <lapacke.h>
+#include <mkl.h>
+//#include <cblas.h>
+//#include <lapacke.h>
 
 int main(int argc, char **argv) {
   int N = atoi(argv[1]);
