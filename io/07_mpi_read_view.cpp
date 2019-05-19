@@ -16,8 +16,9 @@ int main(int argc, char** argv) {
   int Nlocal = N / mpisize;
   int offset = Nlocal * mpirank * sizeof(int);
   int * buffer = new int [Nlocal];
+  MPI_File_set_view(file, offset, MPI_INT, MPI_INT, "navite", MPI_INFO_NULL);
   gettimeofday(&tic, NULL);
-  MPI_File_read_at(file, offset, buffer, Nlocal, MPI_INT, MPI_STATUS_IGNORE);
+  MPI_File_read(file, buffer, Nlocal, MPI_INT, MPI_STATUS_IGNORE);
   gettimeofday(&toc, NULL);
   MPI_File_close(&file);
   double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;

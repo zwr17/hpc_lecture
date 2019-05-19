@@ -18,8 +18,8 @@ int main(int argc, char ** argv) {
   int send_rank = (mpirank + 1) % mpisize;
   int recv_rank = (mpirank - 1 + mpisize) % mpisize;
   gettimeofday(&tic, NULL);
-  MPI_Recv(recv, size, MPI_INT, recv_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   MPI_Send(send, size, MPI_INT, send_rank, 0, MPI_COMM_WORLD);
+  MPI_Recv(recv, size, MPI_INT, recv_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
   gettimeofday(&toc, NULL);
   printf("%lf s\n",toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6);
   delete[] send;
