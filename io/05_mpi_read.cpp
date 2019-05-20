@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
   MPI_File_get_size(file, &filesize);
   int N = filesize / sizeof(int);
   int Nlocal = N / mpisize;
-  int offset = Nlocal * mpirank * sizeof(int);
+  int offset = Nlocal * mpirank;
   int * buffer = new int [Nlocal];
   gettimeofday(&tic, NULL);
   MPI_File_read_at(file, offset, buffer, Nlocal, MPI_INT, MPI_STATUS_IGNORE);

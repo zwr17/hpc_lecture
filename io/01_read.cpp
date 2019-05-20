@@ -18,7 +18,6 @@ int main () {
   int sum = 0;
   for (int i=0; i<N; i++) {
     sum += buffer[i] - '0';
-    assert(buffer[i] - '0' == 1);
   }
   printf("N=%d: %lf s (%lf GB/s)\n",N,time,N/time/1e9);
   printf("sum=%d\n",sum);

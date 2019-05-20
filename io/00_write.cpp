@@ -5,7 +5,7 @@
 using namespace std;
 
 int main (int argc, char** argv) {
-  const int N = 100000000;
+  const int N = atoi(argv[1]);
   struct timeval tic, toc;
   char *buffer = new char [N];
   for (int i=0; i<N; i++) buffer[i] = '1';

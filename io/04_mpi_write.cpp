@@ -3,7 +3,7 @@
 #include <sys/time.h>
 
 int main(int argc, char** argv) {
-  const int N = 100000000;
+  const int N = 1 << 27;
   struct timeval tic, toc;
   int mpisize, mpirank;
   MPI_File file;
