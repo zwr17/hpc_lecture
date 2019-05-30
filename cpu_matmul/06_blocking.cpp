@@ -22,14 +22,14 @@ int main(int argc, char **argv) {
   gettimeofday(&tic, NULL);
   const int m = N, n = N, k = N;
   const int kc = 512;
-  const int nc = 256;
+  const int nc = 32;
   const int mc = 256;
-  const int nr = 8;
-  const int mr = 8;
+  const int nr = 32;
+  const int mr = 32;
   float Ac[mc*kc];
   float Bc[kc*nc];
   float Cc[mc*nc];
-#pragma omp parallel for private(Ac,Bc,Cc)
+#pragma omp parallel for collapse(2) private(Ac,Bc,Cc)
   for (int jc=0; jc<n; jc+=nc) {
     for (int pc=0; pc<k; pc+=kc) {
       for (int p=0; p<kc; p++) {
