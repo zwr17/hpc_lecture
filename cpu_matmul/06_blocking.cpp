@@ -22,28 +22,28 @@ int main(int argc, char **argv) {
   gettimeofday(&tic, NULL);
   const int m = N, n = N, k = N;
   const int kc = 512;
-  const int nc = 512;
-  const int mc = 512;
-  const int nr = 32;
-  const int mr = 32;
-  float Ac[mc][kc];
-  float Bc[kc][nc];
-  float Cc[mc][nc];
-#pragma omp parallel for
+  const int nc = 256;
+  const int mc = 256;
+  const int nr = 8;
+  const int mr = 8;
+  float Ac[mc*kc];
+  float Bc[kc*nc];
+  float Cc[mc*nc];
+#pragma omp parallel for private(Ac,Bc,Cc)
   for (int jc=0; jc<n; jc+=nc) {
     for (int pc=0; pc<k; pc+=kc) {
       for (int p=0; p<kc; p++) {
         for (int j=0; j<nc; j++) {
-          Bc[p][j] = B[p+pc][j+jc];
+          Bc[p*nc+j] = B[p+pc][j+jc];
         }
       }
       for (int ic=0; ic<m; ic+=mc) {
         for (int i=0; i<mc; i++) {
           for (int p=0; p<kc; p++) {
-            Ac[i][p] = A[i+ic][p+pc];
+            Ac[i*kc+p] = A[i+ic][p+pc];
           }
           for (int j=0; j<nc; j++) {
-            Cc[i][j] = 0;
+            Cc[i*nc+j] = 0;
           }
         }
         for (int jr=0; jr<nc; jr+=nr) {
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
             for (int kr=0; kr<kc; kr++) {
               for (int i=ir; i<ir+mr; i++) {
                 for (int j=jr; j<jr+nr; j++) { 
-                  Cc[i][j] += Ac[i][kr] * Bc[kr][j];
+                  Cc[i*nc+j] += Ac[i*kc+kr] * Bc[kr*nc+j];
                 }
               }
             }
@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
         }
         for (int i=0; i<mc; i++) {
           for (int j=0; j<nc; j++) {
-            C[i+ic][j+jc] += Cc[i][j];
+            C[i+ic][j+jc] += Cc[i*nc+j];
           }
         }
       }
