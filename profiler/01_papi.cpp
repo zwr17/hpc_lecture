@@ -46,11 +46,13 @@ int main(int argc, char **argv) {
       C[i][j] = 0;
     }
   }
-  int events[2] = {PAPI_L1_DCM, PAPI_L2_DCM};
-  PAPI_start_counters(events, 2);
+  int events[2] = {PAPI_L2_DCM, PAPI_L2_DCH};
   struct timeval tic, toc;
   gettimeofday(&tic, NULL);
+  PAPI_start_counters(events, 2);
   avx_matmult(A, B, C, N);
+  long long values[2];
+  PAPI_read_counters(values, 2);
   gettimeofday(&toc, NULL);
   double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
   printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
@@ -59,8 +61,6 @@ int main(int argc, char **argv) {
   gettimeofday(&toc, NULL);
   time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
   printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
-  long long values[2];
-  PAPI_read_counters(values, 2);
   float err = 0;
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {
@@ -68,8 +68,8 @@ int main(int argc, char **argv) {
     }
   }
   printf("error: %f\n",err/N/N);
-  printf("L1 cache misses:  %lld\n", values[0]);
-  printf("L2 cache misses:  %lld\n", values[1]);
+  printf("L2 cache misses:  %lld\n", values[0]);
+  printf("L2 cache hits  :  %lld\n", values[1]);
   for (int i=0; i<N; i++) {
     delete[] A[i];
     delete[] B[i];
