@@ -27,6 +27,6 @@ int main() {
     std::cout << key[i] << " ";
   }
   std::cout << std::endl;
-  delete bucket;
-  delete key;
+  delete[] bucket;
+  delete[] key;
 }

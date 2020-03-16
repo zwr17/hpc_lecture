@@ -3,38 +3,21 @@
 
 template<class T>
 void merge(std::vector<T>& vec, int begin, int mid, int end) {
-  int size1 = mid-begin+1;
-  int size2 = end-mid;
-  std::vector<T> L(size1);
-  std::vector<T> R(size2);
-  
-  for(int i=0; i<L.size(); i++) {
-    L[i] = vec[begin+i];
+  std::vector<T> tmp(end-begin+1);
+  int left = begin;
+  int right = mid+1;
+  for (int i=0; i<tmp.size(); i++) { 
+    if (left > mid)
+      tmp[i] = vec[right++];
+    else if (right > end)
+      tmp[i] = vec[left++];
+    else if (vec[left] <= vec[right])
+      tmp[i] = vec[left++];
+    else
+      tmp[i] = vec[right++]; 
   }
-  for(int j=0; j<R.size(); j++) {
-    R[j] = vec[mid+j+1];
-  }
-  
-  int i=0,j=0,k;
-  for(k=begin; k<=end && i<L.size() && j<R.size(); k++) {
-    if(L[i] <= R[j]) {
-      vec[k] = L[i];
-      i++;
-    }
-    else {
-      vec[k] = R[j];
-      j++;
-    }
-  }
-  for(i=i; i<L.size(); i++) {
-    vec[k] = L[i];
-    k++;
-  }
-        
-  for(j=j; j<R.size(); j++) {
-    vec[k] = R[j];
-    k++;
-  }
+  for (int i=0; i<tmp.size(); i++) 
+    vec[begin++] = tmp[i];
 }
 
 template<class T>
