@@ -32,9 +32,9 @@ void merge_sort(std::vector<T>& vec, int begin, int end) {
 
 int main() {
   int n = 20;
-  std::vector<double> vec(n);
+  std::vector<int> vec(n);
   for (int i=0; i<n; i++) {
-    vec[i] = drand48();
+    vec[i] = rand() % (10 * n);
     std::cout << vec[i] << " ";
   }
   std::cout << std::endl;
