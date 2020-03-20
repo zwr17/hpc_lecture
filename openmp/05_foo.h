@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 static int a = 0;
 extern int b;

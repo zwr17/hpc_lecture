@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <cstdlib>
 
 template<class T>
 void merge(std::vector<T>& vec, int begin, int mid, int end) {
