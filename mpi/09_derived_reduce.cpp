@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
   MPI_Type_contiguous(5, MPI_DOUBLE, &MPI_BODY);
   MPI_Type_commit(&MPI_BODY);
   MPI_Allgather(&body[begin], end-begin, MPI_BODY, body, end-begin, MPI_BODY, MPI_COMM_WORLD);
-  double fx[N] = {0}, fy[N] = {0};
   for(int i=0; i<N; i++) {
     for(int j=begin; j<end; j++) {
       if(i != j) {
