@@ -1,10 +1,11 @@
-#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <mpi.h>
 
 int main(int argc, char** argv) {
   const int N = 20;
-  double x[N], y[N], m[N], fx[N], fy[N];
+  double x0[N], y0[N], m0[N], fx0[N], fy0[N];
   MPI_Init(&argc, &argv);
   int size, rank;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -13,16 +14,17 @@ int main(int argc, char** argv) {
   int end = (rank + 1) * (N / size);
   srand48(rank);
   for(int i=begin; i<end; i++) {
-    x[i] = drand48();
-    y[i] = drand48();
-    m[i] = drand48();
-    fx[i] = fy[i] = 0;
+    x0[i] = drand48();
+    y0[i] = drand48();
+    m0[i] = drand48();
+    fx0[i] = fy0[i] = 0;
   }
-  MPI_Gather( &x[begin], end-begin, MPI_DOUBLE,  x, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  MPI_Gather( &y[begin], end-begin, MPI_DOUBLE,  y, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  MPI_Gather( &m[begin], end-begin, MPI_DOUBLE,  m, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  MPI_Gather(&fx[begin], end-begin, MPI_DOUBLE, fx, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  MPI_Gather(&fy[begin], end-begin, MPI_DOUBLE, fy, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  double x[N], y[N], m[N], fx[N], fy[N];
+  MPI_Gather( &x0[begin], end-begin, MPI_DOUBLE,  x, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gather( &y0[begin], end-begin, MPI_DOUBLE,  y, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gather( &m0[begin], end-begin, MPI_DOUBLE,  m, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gather(&fx0[begin], end-begin, MPI_DOUBLE, fx, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gather(&fy0[begin], end-begin, MPI_DOUBLE, fy, end-begin, MPI_DOUBLE, 0, MPI_COMM_WORLD);
   if(rank == 0) {
     for(int i=0; i<N; i++) {
       for(int j=0; j<N; j++) {
@@ -34,7 +36,7 @@ int main(int argc, char** argv) {
           fy[i] -= ry * m[j] / (r * r * r);
         }
       }
-      std::cout << i << " " << fx[i] << " " << fy[i] << std::endl;
+      printf("%d %g %g\n",i,fx[i],fy[i]);
     }
   }
   MPI_Finalize();

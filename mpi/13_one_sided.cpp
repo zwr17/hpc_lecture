@@ -1,6 +1,7 @@
-#include "mpi.h"
-#include <cmath>
 #include <cstdio>
+#include <cmath>
+#include "mpi.h"
+
 int main(int argc, char ** argv) {
   MPI_Init(&argc, &argv);
   int size, rank;

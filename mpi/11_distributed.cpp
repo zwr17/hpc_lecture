@@ -1,4 +1,5 @@
-#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <mpi.h>
 
@@ -44,7 +45,7 @@ int main(int argc, char** argv) {
     MPI_Barrier(MPI_COMM_WORLD);
     if(irank==rank) {
       for(int i=0; i<N/size; i++) {
-        std::cout << i+rank*N/size << " " << ibody[i].fx << " " << ibody[i].fy << std::endl;
+        printf("%d %g %g\n",i+rank*N/size,ibody[i].fx,ibody[i].fy);
       }
     }
   }

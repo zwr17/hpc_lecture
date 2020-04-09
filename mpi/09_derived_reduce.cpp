@@ -1,4 +1,5 @@
-#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 #include <mpi.h>
 
@@ -15,7 +16,7 @@ void sum(Body *in, Body *out, int &size, MPI_Datatype*) {
 
 int main(int argc, char** argv) {
   const int N = 20;
-  Body body[N];
+  Body body0[N];
   MPI_Init(&argc, &argv);
   int size, rank;
   MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -24,15 +25,16 @@ int main(int argc, char** argv) {
   int end = (rank + 1) * (N / size);
   srand48(rank);
   for(int i=begin; i<end; i++) {
-    body[i].x = drand48();
-    body[i].y = drand48();
-    body[i].m = drand48();
-    body[i].fx = body[i].fy = 0;
+    body0[i].x = drand48();
+    body0[i].y = drand48();
+    body0[i].m = drand48();
+    body0[i].fx = body0[i].fy = 0;
   }
+  Body body[N];
   MPI_Datatype MPI_BODY;
   MPI_Type_contiguous(5, MPI_DOUBLE, &MPI_BODY);
   MPI_Type_commit(&MPI_BODY);
-  MPI_Allgather(&body[begin], end-begin, MPI_BODY, body, end-begin, MPI_BODY, MPI_COMM_WORLD);
+  MPI_Allgather(&body0[begin], end-begin, MPI_BODY, body, end-begin, MPI_BODY, MPI_COMM_WORLD);
   for(int i=0; i<N; i++) {
     for(int j=begin; j<end; j++) {
       if(i != j) {
@@ -53,7 +55,7 @@ int main(int argc, char** argv) {
   MPI_Op_create((MPI_User_function *)sum, 1, &MPI_FORCE_SUM);
   MPI_Allreduce(MPI_IN_PLACE, body, N, MPI_FORCE, MPI_FORCE_SUM, MPI_COMM_WORLD);
   for(int i=0; i<N; i++) {
-    if(rank==0) std::cout << i << " " << body[i].fx << " " << body[i].fy << std::endl;
+    if(rank==0) printf("%d %g %g\n",i,body[i].fx,body[i].fy);
   }
   MPI_Op_free(&MPI_FORCE_SUM);
   MPI_Finalize();
