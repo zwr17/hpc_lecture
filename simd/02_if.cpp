@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int main() {
   const int N = 16;
@@ -13,5 +13,5 @@ int main() {
       c[i] = a[i] + b[i];
   }
   for(int i=0; i<N; i++)
-    std::cout << i << " " << c[i] << std::endl;
+    printf("%d %g\n",i,c[i]);
 }

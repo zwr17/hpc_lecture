@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 void add(float a, float b, float &c) {
   c = a + b;
@@ -15,5 +15,5 @@ int main() {
   for(int i=0; i<N; i++)
     add(a[i],b[i],c[i]);
   for(int i=0; i<N; i++)
-    std::cout << i << " " << c[i] << std::endl;
+    printf("%d %g\n",i,c[i]);
 }

@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int main() {
   const int N = 16;
@@ -10,5 +10,5 @@ int main() {
   for(int i=0; i<N; i++)
     b[i] = a[idx[i]];
   for(int i=0; i<N; i++)
-    std::cout << i << " " << b[i] << std::endl;
+    printf("%d %g\n",i,b[i]);
 }

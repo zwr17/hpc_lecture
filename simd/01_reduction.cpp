@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int main() {
   const int N = 16;
@@ -7,5 +7,5 @@ int main() {
     a[i] = 1;
   for(int i=0; i<N; i++)
     b += a[i];
-  std::cout << b << std::endl;
+  printf("%g\n",b);
 }
