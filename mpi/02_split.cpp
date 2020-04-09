@@ -1,4 +1,5 @@
-#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <mpi.h>
 
 int main(int argc, char** argv) {
@@ -10,7 +11,7 @@ int main(int argc, char** argv) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   int begin = rank * (N / size);
   int end = (rank + 1) * (N / size);
-  std::cout << rank << " " << begin << " " << end << std::endl;
+  printf("%d %d %d\n",rank,begin,end);
   srand48(rank);
   for(int i=begin; i<end; i++) {
     x[i] = drand48();

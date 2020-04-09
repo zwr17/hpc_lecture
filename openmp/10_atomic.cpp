@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int main() {
   float x[10];
@@ -10,5 +10,5 @@ int main() {
     x[i%10]++;
   }
   for (int i=0; i<10; i++)
-    std::cout << i << " " << x[i] << std::endl;
+    printf("%d %g\n",i,x[i]);
 }

@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int main() {
   int a[8] = {2,1,3,2,1,1,1,2};
@@ -13,6 +13,6 @@ int main() {
       a[i] += b[i-j];
   }
   for(int i=0; i<8; i++)
-    std::cout << a[i] << " ";
-  std::cout << std::endl;
+    printf("%d ",a[i]);
+  printf("\n");
 }

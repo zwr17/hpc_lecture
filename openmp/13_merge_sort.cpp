@@ -1,6 +1,6 @@
-#include <iostream>
-#include <vector>
+#include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 template<class T>
 void merge(std::vector<T>& vec, int begin, int mid, int end) {
@@ -36,14 +36,14 @@ int main() {
   std::vector<int> vec(n);
   for (int i=0; i<n; i++) {
     vec[i] = rand() % (10 * n);
-    std::cout << vec[i] << " ";
+    printf("%d ",vec[i]);
   }
-  std::cout << std::endl;
+  printf("\n");
 
   merge_sort(vec, 0, n-1);
 
   for (int i=0; i<n; i++) {
-    std::cout << vec[i]	<< " ";
+    printf("%d ",vec[i]);
   }
-  std::cout << std::endl;
+  printf("\n");
 }

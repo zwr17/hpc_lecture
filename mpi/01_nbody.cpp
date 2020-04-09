@@ -1,4 +1,5 @@
-#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
 
 int main() {
@@ -22,6 +23,6 @@ int main() {
         fy[i] -= ry * m[j] / (r * r * r);
       }
     }
-    std::cout << i << " " << fx[i] << " " << fy[i] << std::endl;
+    printf("%d %g %g\n",i,fx[i],fy[i]);
   }
 }

@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int main() {
   int a = 0;
@@ -6,5 +6,5 @@ int main() {
   for(int i=0; i<10000; i++) {
     a += 1;
   }
-  std::cout << a << std::endl;
+  printf("%d\n",a);
 }

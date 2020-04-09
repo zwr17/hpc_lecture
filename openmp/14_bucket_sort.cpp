@@ -1,17 +1,18 @@
-#include <iostream>
+#include <cstdio>
 #include <cstdlib>
+#include <vector>
 
 int main() {
   int n = 50;
   int range = 5;
-  int *key = new int [n];
+  std::vector<int> key(n);
   for (int i=0; i<n; i++) {
     key[i] = rand() % range;
-    std::cout << key[i] << " ";
+    printf("%d ",key[i]);
   }
-  std::cout << std::endl;              
+  printf("\n");
 
-  int *bucket = new int [range];
+  std::vector<int> bucket(range); 
   for (int i=0; i<range; i++) {
     bucket[i] = 0;
   }
@@ -25,9 +26,7 @@ int main() {
   }
 
   for (int i=0; i<n; i++) {
-    std::cout << key[i] << " ";
+    printf("%d ",key[i]);
   }
-  std::cout << std::endl;
-  delete[] bucket;
-  delete[] key;
+  printf("\n");
 }

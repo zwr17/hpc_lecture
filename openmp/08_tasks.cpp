@@ -1,4 +1,4 @@
-#include <iostream>
+#include <cstdio>
 
 int fib(int n) {
   int i,j;
@@ -16,7 +16,7 @@ int main() {
 #pragma omp parallel
   for (int i=1; i<n; i++) {
 #pragma omp single
-    std::cout << fib(i) << " ";
+    printf("%d ",fib(i));
   }
-  std::cout << std::endl;
+  printf("\n");
 }
