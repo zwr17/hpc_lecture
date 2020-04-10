@@ -2,7 +2,7 @@
 #include <cmath>
 
 int main() {
-  const int N = 16;
+  const int N = 8;
   float a[N], b[N];
   for(int i=0; i<N; i++)
     a[i] = i * M_PI / (N - 1);

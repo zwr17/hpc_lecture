@@ -1,7 +1,7 @@
 #include <cstdio>
 
 int main() {
-  const int N = 16;
+  const int N = 8;
   float a[N], b[N], c[N];
   for(int i=0; i<N; i++) {
     a[i] = i;
