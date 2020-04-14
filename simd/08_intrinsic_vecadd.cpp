@@ -13,5 +13,6 @@ int main() {
   __m256 bvec = _mm256_load_ps(b);
   __m256 cvec = _mm256_add_ps(avec, bvec);
   _mm256_store_ps(c, cvec);
-  for(int i=0; i<N; i++) printf("%f\n",c[i]);
+  for(int i=0; i<N; i++)
+    printf("%d %g\n",i,c[i]);
 }
