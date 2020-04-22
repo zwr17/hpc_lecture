@@ -3,7 +3,7 @@
 #include <cmath>
 
 int main() {
-  const int N = 20;
+  const int N = 8;
   double x[N], y[N], m[N], fx[N], fy[N];
   for(int i=0; i<N; i++) {
     x[i] = drand48();
