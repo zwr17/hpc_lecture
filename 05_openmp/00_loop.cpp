@@ -1,9 +1,16 @@
 #include <cstdio>
-#include <openacc.h>
+#include <omp.h>
 
 int main() {
-#pragma acc parallel loop
-  for(int i=0; i<8; i++) {
-    printf("%d: %d\n",__pgi_vectoridx(),i);
+  const int N=8;
+  int *a = new int [N];
+#pragma omp target map(tofrom:a[0:N])
+  {
+#pragma omp parallel for
+    for(int i=0; i<N; i++)
+      a[i] = omp_get_thread_num();
   }
+  for(int i=0; i<N; i++)
+    printf("%d: %d\n",a[i],i);
+  delete[] a;
 }
