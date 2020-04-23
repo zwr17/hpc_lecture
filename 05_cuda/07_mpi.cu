@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
       printf("MPI rank    : %d / %d  GPU device : %d / %d\n",
              mpirank, mpisize, gpurank, gpusize);
       GPU_Kernel<<<2,2>>>();
-      cudaThreadSynchronize();
+      cudaDeviceSynchronize();
     }
   }
   MPI_Finalize();
