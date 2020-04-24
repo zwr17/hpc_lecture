@@ -8,5 +8,4 @@ int main() {
   printf("Hello CPU\n");
   print<<<1,1>>>();
   cudaDeviceSynchronize();
-  return 0;
 }
