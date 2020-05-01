@@ -1,29 +1,26 @@
 #include <cstdio>
 #include <starpu.h>
 
-struct params {
+struct Params {
   int i;
   float f;
 };
 
-void cpu_func(void *buffers[], void *cl_arg) {
-  (void)buffers;
-  struct params *params = (struct params *) cl_arg;
-  printf("hello\n");
+void cpu_func(void **, void *args) {
+  Params *p = (Params *) args;
+  printf("%d %g\n",p->i,p->f);
 }
 
 int main(void) {
-  struct params params = {1, 2.0f};
+  Params p = {1, 1.1};
   int ret = starpu_init(NULL);
-  struct starpu_task *task = starpu_task_create();
   struct starpu_codelet cl;
   starpu_codelet_init(&cl);
   cl.cpu_funcs[0] = cpu_func;
-  cl.nbuffers = 0;
+  struct starpu_task *task = starpu_task_create();
   task->cl = &cl;
-  task->cl_arg = &params;
-  task->cl_arg_size = sizeof(params);
-  task->synchronous = 1;
+  task->cl_arg = &p;
+  task->cl_arg_size = sizeof(Params);
   ret = starpu_task_submit(task);
   starpu_shutdown();
 }
