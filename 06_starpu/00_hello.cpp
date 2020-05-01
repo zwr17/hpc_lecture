@@ -10,8 +10,7 @@ int main() {
   struct starpu_codelet cl;
   starpu_codelet_init(&cl);
   cl.cpu_funcs[0] = hello;
-  struct starpu_task *task = starpu_task_create();
-  task->cl = &cl;
-  err = starpu_task_submit(task);
+  starpu_task_insert(&cl,0);
+  starpu_task_wait_for_all();
   starpu_shutdown();
 }
