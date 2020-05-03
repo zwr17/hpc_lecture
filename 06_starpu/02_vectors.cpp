@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <starpu.h>
 
-void cpu_func(void *buffers[], void *) {
+void vectors(void *buffers[], void *) {
   struct starpu_vector_interface *vector_handle =
     (struct starpu_vector_interface *)buffers[0];
   int N = STARPU_VECTOR_GET_NX(vector_handle);
@@ -18,7 +18,7 @@ int main(void) {
   starpu_vector_data_register(&vector_handle,0,(uintptr_t)a,N,sizeof(float));
   struct starpu_codelet cl;
   starpu_codelet_init(&cl);
-  cl.cpu_funcs[0] = cpu_func;
+  cl.cpu_funcs[0] = vectors;
   cl.nbuffers = 1;
   starpu_task_insert(&cl,STARPU_RW,vector_handle,0);
   starpu_task_wait_for_all();

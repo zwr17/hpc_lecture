@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <starpu.h>
 
-void cpu_func(void **, void *args) {
+void values(void **, void *args) {
   int i;
   float f;
   starpu_codelet_unpack_args(args, &i, &f, 0);
@@ -9,12 +9,12 @@ void cpu_func(void **, void *args) {
 }
 
 int main(void) {
-  int i=1;
+  int i = 1;
   float f = 1.1;
   int ret = starpu_init(NULL);
   struct starpu_codelet cl;
   starpu_codelet_init(&cl);
-  cl.cpu_funcs[0] = cpu_func;
+  cl.cpu_funcs[0] = values;
   starpu_task_insert(&cl,
 		     STARPU_VALUE, &i, sizeof(int),
 		     STARPU_VALUE, &f, sizeof(float),
