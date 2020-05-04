@@ -2,10 +2,8 @@
 #include <starpu.h>
 
 void vectors(void *buffers[], void *) {
-  struct starpu_vector_interface *vector_handle =
-    (struct starpu_vector_interface *)buffers[0];
-  int N = STARPU_VECTOR_GET_NX(vector_handle);
-  float *a = (float*)STARPU_VECTOR_GET_PTR(vector_handle);
+  int N = STARPU_VECTOR_GET_NX(buffers[0]);
+  float *a = (float*)STARPU_VECTOR_GET_PTR(buffers[0]);
   for(int i=0; i<N; i++)
     a[i] = i;
 }
@@ -18,8 +16,8 @@ int main(void) {
   starpu_vector_data_register(&vector_handle,0,(uintptr_t)a,N,sizeof(float));
   struct starpu_codelet cl;
   starpu_codelet_init(&cl);
-  cl.cpu_funcs[0] = vectors;
   cl.nbuffers = 1;
+  cl.cpu_funcs[0] = vectors;
   starpu_task_insert(&cl,STARPU_RW,vector_handle,0);
   starpu_task_wait_for_all();
   starpu_data_unregister(vector_handle);

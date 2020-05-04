@@ -1,8 +1,15 @@
 #include <starpu.h>
 
+void cpu_codelet(void *buffers[], void *) {
+  float *a = (float *)STARPU_VECTOR_GET_PTR(buffers[0]);
+  int N = (int)STARPU_VECTOR_GET_NX(buffers[0]);
+  for(int i=0; i<N; i++)
+    a[i] = i;
+}
+
 static __global__ void cuda_block(float *a) {
   int i = threadIdx.x;
-  a[i] = i;
+  a[i] = -i;
 }
 
 void cuda_codelet(void *buffers[], void *) {
@@ -13,7 +20,7 @@ void cuda_codelet(void *buffers[], void *) {
 }
 
 int main() {
-  const int N = 8;
+  const int N=8;
   float a[N];
   int ret = starpu_init(NULL);
   starpu_data_handle_t vector_handle;
@@ -21,6 +28,12 @@ int main() {
   struct starpu_codelet cl;
   starpu_codelet_init(&cl);
   cl.nbuffers = 1;
+  cl.where = STARPU_CPU;
+  cl.cpu_funcs[0] = cpu_codelet;
+  starpu_task_insert(&cl,STARPU_RW,vector_handle,0);
+  starpu_task_wait_for_all();
+  for(int i=0; i<N; i++)
+    printf("%d %g\n",i,a[i]);
   cl.where = STARPU_CUDA;
   cl.cuda_funcs[0] = cuda_codelet;
   starpu_task_insert(&cl,STARPU_RW,vector_handle,0);
