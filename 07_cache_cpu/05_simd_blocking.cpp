@@ -126,9 +126,9 @@ void print_matrix(const float *matrix, const size_t M, const size_t N) {
 
 // ./a.out M N K
 int main(int argc, char *argv[]) {
-    int M = 2048;
-    int N = 2048;
-    int K = 2048;
+    size_t M = 2048;
+    size_t N = 2048;
+    size_t K = 2048;
 
     std::default_random_engine engine;
     std::uniform_real_distribution<float> rnd;
