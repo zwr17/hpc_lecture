@@ -126,12 +126,9 @@ void print_matrix(const float *matrix, const size_t M, const size_t N) {
 
 // ./a.out M N K
 int main(int argc, char *argv[]) {
-    assert(argc == 4);
-
-    std::size_t M, N, K;
-    ::sscanf(argv[1], "%zu", &M);
-    ::sscanf(argv[2], "%zu", &N);
-    ::sscanf(argv[3], "%zu", &K);
+    int M = 2048;
+    int N = 2048;
+    int K = 2048;
 
     std::default_random_engine engine;
     std::uniform_real_distribution<float> rnd;
@@ -158,13 +155,15 @@ int main(int argc, char *argv[]) {
     // Warmup
     ::gemm_blocking(A, B, C_opt, M, N, K);
 
-    ::memset(C_opt, 0, M * N * sizeof(float));
 
     double start = get_time();
-    ::gemm_blocking(A, B, C_opt, M, N, K);
+    for (int it=0; it<10; it++) {
+      ::memset(C_opt, 0, M * N * sizeof(float));
+      ::gemm_blocking(A, B, C_opt, M, N, K);
+    }
     double end = get_time();
     // ::print_matrix(C_opt, M, N);
-    ::printf("%f GFLOPS.\n", flop / (end - start) / 1000 / 1000 / 1000);
+    ::printf("%f GFLOPS.\n", flop / (end - start) / 1e8);
 
     float *C_naive = nullptr;
     ::posix_memalign(reinterpret_cast<void **>(&C_naive), ALIGN,
