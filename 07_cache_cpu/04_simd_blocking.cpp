@@ -22,21 +22,24 @@ void matmult(const float *A, const float *B, float *C, int N) {
   const int mc = 256;
   const int nr = 64;
   const int mr = 32;
-#pragma omp parallel for collapse(2)
+  alignas(ALIGN) float Ac[mc*kc];
+  alignas(ALIGN) float Bc[kc*nc];
+  alignas(ALIGN) float Cc[mc*nc];
+#pragma omp parallel for collapse(2) private(Ac,Bc,Cc)
   for (int jc=0; jc<n; jc+=nc) {
     for (int pc=0; pc<k; pc+=kc) {
-      alignas(ALIGN) float Bc[kc*nc];
       for (int p=0; p<kc; p++) {
 	memcpy(Bc + p * nc, B + (p + pc) * N + jc,
 	       nc * sizeof(float));
       }
       for (int ic=0; ic<m; ic+=mc) {
-	alignas(ALIGN) float Ac[mc * kc];
 	for (int i=0; i<mc; i++) {
 	  memcpy(Ac + i * kc, A + (i + ic) * N + pc,
 		 kc * sizeof(float));
+	  for (int j=0; j<nc; j++) {
+            Cc[i*nc+j] = 0;
+          }
 	}
-	alignas(ALIGN) float Cc[mc * nc]={0.0f};
 	for (int jr=0; jr<nc; jr+=nr) {
 	  for (int ir=0; ir<mc; ir+=mr) {
 	    for (int kr=0; kr<kc; kr++) {
