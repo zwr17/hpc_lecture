@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <sys/time.h>
+using namespace std;
 
 #define M 1024
 
@@ -10,20 +11,20 @@ __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.y;
   int j = threadIdx.x + blockDim.x * blockIdx.x;
   float sum = 0.0f;
-  __shared__ float s_A[M];
+  __shared__ float A_s[M];
   for (int ks=0; ks<N; ks+=M) {
     __syncthreads();
-    s_A[threadIdx.x] = A[N*i+ks+threadIdx.x];
+    A_s[threadIdx.x] = A[N*i+ks+threadIdx.x];
     __syncthreads();
     for (int k=ks; k<ks+M; k++) {
-      sum += s_A[k-ks] * B[N*k+j];
+      sum += A_s[k-ks] * B[N*k+j];
     }
   }
   C[N*i+j] = sum;
 }
 
 int main(int argc, char **argv) {
-  int N = atoi(argv[1]);
+  int N = 2048;
   float * h_A = new float [N*N];
   float * h_B = new float [N*N];
   float * h_C = new float [N*N];
@@ -66,8 +67,8 @@ int main(int argc, char **argv) {
   stat = cublasSetMatrix(N, N, sizeof(*h_B), h_B, N, d_B, N);
   stat = cublasSetMatrix(N, N, sizeof(*h_D), h_D, N, d_D, N);
   gettimeofday(&tic, NULL);
-  stat = cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_T, N, N, N,
-                     &alpha, d_A, N, d_B, N, &beta, d_D, N);
+  stat = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, N, N, N,
+                     &alpha, d_B, N, d_A, N, &beta, d_D, N);
   stat = cublasGetMatrix(N, N, sizeof(*h_D), d_D, N, h_D, N);
   gettimeofday(&toc, NULL);
   time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
@@ -75,10 +76,20 @@ int main(int argc, char **argv) {
   float err = 0;
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {
-      err += fabs(h_C[N*i+j]-h_D[N*j+i]);
+      err += fabs(h_C[N*i+j]-h_D[N*i+j]);
     }
   }
   printf("error: %f\n",err/N/N);
+#pragma omp parallel for
+  for (int i=0; i<N; i++)
+    for (int k=0; k<N; k++)
+      for (int j=0; j<N; j++)
+        h_D[N*i+j] -= h_A[N*i+k] * h_B[N*k+j];
+  err = 0;
+  for (int i=0; i<N; i++)
+    for (int j=0; j<N; j++)
+      err += fabs(h_D[N*i+j]);
+  printf("error: %lf\n",err/N/N);
   cudaFree(d_A);
   cudaFree(d_B);
   cudaFree(d_C);
