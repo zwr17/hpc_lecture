@@ -7,9 +7,11 @@ using namespace std;
 __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.x;
   int j = threadIdx.x;
+  float sum = 0;
   for (int k=0; k<N; k++) {
-    C[N*i+j] += A[N*i+k] * B[N*k+j];
+    sum += A[N*i+k] * B[N*k+j];
   }
+  C[N*i+j] = sum;
 }
 
 int main(int argc, char **argv) {
