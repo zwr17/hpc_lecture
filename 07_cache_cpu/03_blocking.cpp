@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 #include <chrono>
+#include <immintrin.h>
 using namespace std;
 typedef vector<vector<float>> matrix;
 
