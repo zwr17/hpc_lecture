@@ -4,8 +4,6 @@
 #include <chrono>
 using namespace std;
 
-#define M 512
-
 __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.y;
   int j = threadIdx.x + blockDim.x * blockIdx.x;
@@ -18,6 +16,7 @@ __global__ void matmul(float *A, float *B, float *C, int N) {
 
 int main(int argc, char **argv) {
   int N = 2048;
+  int M = 1024;
   int size = N * N * sizeof(float);
   float *A, *B, *C;
   cudaMallocManaged(&A, size);

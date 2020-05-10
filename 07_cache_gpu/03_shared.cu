@@ -4,18 +4,16 @@
 #include <chrono>
 using namespace std;
 
-#define M 1024
-
 __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.y;
   int j = threadIdx.x + blockDim.x * blockIdx.x;
   float sum = 0.0f;
-  __shared__ float A_s[M];
-  for (int ks=0; ks<N; ks+=M) {
+  extern __shared__ float A_s[];
+  for (int ks=0; ks<N; ks+=blockDim.x) {
     __syncthreads();
     A_s[threadIdx.x] = A[N*i+ks+threadIdx.x];
     __syncthreads();
-    for (int k=ks; k<ks+M; k++) {
+    for (int k=ks; k<ks+blockDim.x; k++) {
       sum += A_s[k-ks] * B[N*k+j];
     }
   }
@@ -38,7 +36,7 @@ int main(int argc, char **argv) {
   }
   dim3 grid(N/M, N);
   auto tic = chrono::steady_clock::now();
-  matmul<<<grid,M>>>(A, B, C, N);
+  matmul<<<grid,M,M*sizeof(float)>>>(A, B, C, N);
   cudaDeviceSynchronize();
   auto toc = chrono::steady_clock::now();
   double time = chrono::duration<double>(toc - tic).count();

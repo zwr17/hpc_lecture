@@ -4,7 +4,7 @@
 #include <chrono>
 using namespace std;
 
-#define M 512
+#define M 1024
 
 __global__ void matmul(float *A, float *B, float *C, int N) {
   int i = blockIdx.x / (N / M);
