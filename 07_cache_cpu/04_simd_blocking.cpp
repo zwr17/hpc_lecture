@@ -24,26 +24,7 @@ inline double get_time() {
   return t.tv_sec + t.tv_usec * 1e-6;
 }
 
-void check_error(const float *array1, const float *array2, const size_t N) {
-  double cum_error = 0.0;
-  for (size_t i = 0; i < N; i++) cum_error += fabs(array1[i] - array2[i]);
-  printf("Error: %f\n", cum_error / N);
-}
-
-void gemm_naive(const float *A, const float *B, float *C, const size_t M,
-		const size_t N, const size_t K) {
-#pragma omp parallel for
-  for (size_t m = 0; m < M; m++) {
-    for (size_t k = 0; k < K; k++) {
-      for (size_t n = 0; n < N; n++) {
-	C[m * N + n] += A[m * K + k] * B[k * N + n];
-      }
-    }
-  }
-}
-
-void gemm_blocking(const float *A, const float *B, float *C, const size_t M,
-		   const size_t N, const size_t K) {
+void matmult(const float *A, const float *B, float *C, size_t N) {
   // Intel Xeon E5-2680 v4
   // L1 Cache: 32 KiB
   // L2 Cache: 256 KiB
@@ -51,7 +32,7 @@ void gemm_blocking(const float *A, const float *B, float *C, const size_t M,
 
 #pragma omp parallel for collapse(2)
   for (size_t jc = 0; jc < N; jc += nc) {
-    for (size_t pc = 0; pc < K; pc += kc) {
+    for (size_t pc = 0; pc < N; pc += kc) {
       alignas(ALIGN) float Bc[kc * nc];
 
       for (size_t p = 0; p < kc; p++) {
@@ -59,11 +40,11 @@ void gemm_blocking(const float *A, const float *B, float *C, const size_t M,
 		 nc * sizeof(float));
       }
 
-      for (size_t ic = 0; ic < M; ic += mc) {
+      for (size_t ic = 0; ic < N; ic += mc) {
 	alignas(ALIGN) float Ac[mc * kc];
 
 	for (size_t i = 0; i < mc; i++) {
-	  memcpy(Ac + i * kc, A + (i + ic) * K + pc,
+	  memcpy(Ac + i * kc, A + (i + ic) * N + pc,
 		   kc * sizeof(float));
 	}
 
@@ -111,21 +92,19 @@ int main(int argc, char *argv[]) {
   size_t N = 2048;
   float *A = new float [N*N];
   float *B = new float [N*N];
-  for (size_t i=0; i<N*N; i++) {
-    A[i] = drand48();
-    B[i] = drand48();
-  }
   float *C = nullptr;
   posix_memalign(reinterpret_cast<void **>(&C), ALIGN,
 		   N * N * sizeof(float));
-  memset(C, 0, N * N * sizeof(float));
-
+  for (size_t i=0; i<N*N; i++) {
+    A[i] = drand48();
+    B[i] = drand48();
+    C[i] = 0;
+  }
   size_t flop = 2 * N * N * N;
-
-  gemm_blocking(A, B, C, N, N, N);
+  matmult(A,B,C,N);
   double start = get_time();
   memset(C, 0, N * N * sizeof(float));
-  gemm_blocking(A, B, C, N, N, N);
+  matmult(A,B,C,N);
   double end = get_time();
   printf("%f GFLOPS.\n", flop / (end - start) / 1e9);
 #pragma omp parallel for
