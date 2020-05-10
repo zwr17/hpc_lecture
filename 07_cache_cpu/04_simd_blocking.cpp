@@ -109,43 +109,36 @@ void gemm_blocking(const float *A, const float *B, float *C, const size_t M,
 // ./a.out M N K
 int main(int argc, char *argv[]) {
   size_t N = 2048;
-
-  std::default_random_engine engine;
-  std::uniform_real_distribution<float> rnd;
-
   float *A = new float [N*N];
   float *B = new float [N*N];
   for (size_t i=0; i<N*N; i++) {
     A[i] = drand48();
     B[i] = drand48();
   }
-  float *C_opt = nullptr;
-  posix_memalign(reinterpret_cast<void **>(&C_opt), ALIGN,
+  float *C = nullptr;
+  posix_memalign(reinterpret_cast<void **>(&C), ALIGN,
 		   N * N * sizeof(float));
-  memset(C_opt, 0, N * N * sizeof(float));
+  memset(C, 0, N * N * sizeof(float));
 
   size_t flop = 2 * N * N * N;
 
-  // Warmup
-  //gemm_blocking(A, B, C_opt, N, N, N);
+  gemm_blocking(A, B, C, N, N, N);
   double start = get_time();
-  memset(C_opt, 0, N * N * sizeof(float));
-  gemm_blocking(A, B, C_opt, N, N, N);
+  memset(C, 0, N * N * sizeof(float));
+  gemm_blocking(A, B, C, N, N, N);
   double end = get_time();
   printf("%f GFLOPS.\n", flop / (end - start) / 1e9);
-
-  float *C_naive = nullptr;
-  posix_memalign(reinterpret_cast<void **>(&C_naive), ALIGN,
-		   N * N * sizeof(float));
-  memset(C_naive, 0, N * N * sizeof(float));
-  gemm_naive(A, B, C_naive, N, N, N);
-
-  check_error(C_naive, C_opt, N * N);
-
+#pragma omp parallel for
+  for (int i=0; i<N; i++)
+    for (int k=0; k<N; k++)
+      for (int j=0; j<N; j++)
+        C[N*i+j] -= A[N*i+k] * B[N*k+j];
+  double err = 0;
+  for (int i=0; i<N; i++)
+    for (int j=0; j<N; j++)
+      err += fabs(C[N*i+j]);
+  printf("error: %lf\n",err/N/N);
   free(A);
   free(B);
-  free(C_naive);
-  free(C_opt);
-
-  return EXIT_SUCCESS;
+  free(C);
 }
