@@ -22,39 +22,36 @@ void matmult(const float *A, const float *B, float *C, int N) {
   const int mc = 256;
   const int nr = 64;
   const int mr = 32;
-  alignas(ALIGN) float Ac[mc*kc];
-  alignas(ALIGN) float Bc[kc*nc];
-  alignas(ALIGN) float Cc[mc*nc];
+  float Ac[mc*kc];
+  float Bc[kc*nc];
+  float Cc[mc*nc];
 #pragma omp parallel for collapse(2) private(Ac,Bc,Cc)
   for (int jc=0; jc<n; jc+=nc) {
     for (int pc=0; pc<k; pc+=kc) {
       for (int p=0; p<kc; p++) {
 	for (int j=0; j<nc; j++) {
-          Bc[p*nc+j] = B[N*(p+pc)+j+jc];
-        }
+	  Bc[p*nc+j] = B[N*(p+pc)+j+jc];
+	}
       }
       for (int ic=0; ic<m; ic+=mc) {
 	for (int i=0; i<mc; i++) {
 	  for (int p=0; p<kc; p++) {
-            Ac[i*kc+p] = A[N*(i+ic)+p+pc];
-          }
+	    Ac[i*kc+p] = A[N*(i+ic)+p+pc];
+	  }
 	  for (int j=0; j<nc; j++) {
-            Cc[i*nc+j] = 0;
-          }
+	    Cc[i*nc+j] = 0;
+	  }
 	}
 	for (int jr=0; jr<nc; jr+=nr) {
 	  for (int ir=0; ir<mc; ir+=mr) {
 	    for (int kr=0; kr<kc; kr++) {
 	      for (int i=ir; i<ir+mr; i++) {
-		const auto Ac_p =
-		  _mm256_broadcast_ss(Ac + i * kc + kr);
+		__m256 Avec = _mm256_broadcast_ss(Ac+i*kc+kr);
 		for (int j=jr; j<jr+nr; j+=SIMD) {
-		  const auto Bc_p =
-		    _mm256_load_ps(Bc + kr * nc + j);
-		  auto Cc_p=_mm256_load_ps(Cc + i * nc + j);
-		  _mm256_store_ps(
-				  Cc + i * nc + j,
-				  _mm256_fmadd_ps(Ac_p, Bc_p, Cc_p));
+		  __m256 Bvec = _mm256_load_ps(Bc+kr*nc+j);
+		  __m256 Cvec = _mm256_load_ps(Cc+i*nc+j);
+		  Cvec = _mm256_fmadd_ps(Avec, Bvec, Cvec);
+		  _mm256_store_ps(Cc+i*nc+j, Cvec);
 		}
 	      }
 	    }
@@ -62,8 +59,8 @@ void matmult(const float *A, const float *B, float *C, int N) {
 	}
 	for (int i=0; i<mc; i++) {
 	  for (int j=0; j<nc; j++) {
-            C[N*(i+ic)+j+jc] += Cc[i*nc+j];
-          }
+	    C[N*(i+ic)+j+jc] += Cc[i*nc+j];
+	  }
 	}
       }
     }
