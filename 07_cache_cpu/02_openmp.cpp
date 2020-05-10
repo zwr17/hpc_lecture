@@ -18,13 +18,10 @@ int main(int argc, char **argv) {
   }
   auto tic = chrono::steady_clock::now();
 #pragma omp parallel for
-  for (int i=0; i<N; i++) {
-    for (int k=0; k<N; k++) {
-      for (int j=0; j<N; j++) {
+  for (int i=0; i<N; i++)
+    for (int k=0; k<N; k++)
+      for (int j=0; j<N; j++)
         C[i][j] += A[i][k] * B[k][j];
-      }
-    }
-  }
   auto toc = chrono::steady_clock::now();
   double time = chrono::duration<double>(toc - tic).count();
   printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
