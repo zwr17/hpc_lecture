@@ -106,18 +106,6 @@ void gemm_blocking(const float *A, const float *B, float *C, const size_t M,
   }
 }
 
-void print_matrix(const float *matrix, const size_t M, const size_t N) {
-  printf("%zu x %zu matrix\n", M, N);
-
-  for (size_t m = 0; m < 32; m++) {
-    for (size_t n = 0; n < 32; n++) {
-      printf("%f ", matrix[m * N + n]);
-    }
-    putchar('\n');
-  }
-  putchar('\n');
-}
-
 // ./a.out M N K
 int main(int argc, char *argv[]) {
   size_t N = 2048;
@@ -139,12 +127,11 @@ int main(int argc, char *argv[]) {
   size_t flop = 2 * N * N * N;
 
   // Warmup
-  gemm_blocking(A, B, C_opt, N, N, N);
+  //gemm_blocking(A, B, C_opt, N, N, N);
   double start = get_time();
   memset(C_opt, 0, N * N * sizeof(float));
   gemm_blocking(A, B, C_opt, N, N, N);
   double end = get_time();
-  // print_matrix(C_opt, M, N);
   printf("%f GFLOPS.\n", flop / (end - start) / 1e9);
 
   float *C_naive = nullptr;
@@ -152,7 +139,6 @@ int main(int argc, char *argv[]) {
 		   N * N * sizeof(float));
   memset(C_naive, 0, N * N * sizeof(float));
   gemm_naive(A, B, C_naive, N, N, N);
-  // print_matrix(C_naive, M, N);
 
   check_error(C_naive, C_opt, N * N);
 

@@ -3,12 +3,22 @@
 #include <vector>
 #include <chrono>
 using namespace std;
+typedef vector<vector<float>> matrix;
+
+void matmult(matrix &A, matrix &B, matrix &C, int N) {
+#pragma omp parallel for
+  for (int i=0; i<N; i++)
+    for (int k=0; k<N; k++)
+      for (int j=0; j<N; j++)
+        C[i][j] += A[i][k] * B[k][j];
+}
 
 int main(int argc, char **argv) {
   const int N = 2048;
-  vector<vector<float>> A(N,vector<float>(N));
-  vector<vector<float>> B(N,vector<float>(N));
-  vector<vector<float>> C(N,vector<float>(N));
+  matrix A(N,vector<float>(N));
+  matrix B(N,vector<float>(N));
+  matrix C(N,vector<float>(N));
+  matmult(A,B,C,N);
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {
       A[i][j] = drand48();
@@ -17,11 +27,7 @@ int main(int argc, char **argv) {
     }
   }
   auto tic = chrono::steady_clock::now();
-#pragma omp parallel for
-  for (int i=0; i<N; i++)
-    for (int k=0; k<N; k++)
-      for (int j=0; j<N; j++)
-        C[i][j] += A[i][k] * B[k][j];
+  matmult(A,B,C,N);
   auto toc = chrono::steady_clock::now();
   double time = chrono::duration<double>(toc - tic).count();
   printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
