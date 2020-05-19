@@ -1,6 +1,7 @@
 #include <mpi.h>
 #include <cstdio>
 #include <chrono>
+#include <vector>
 using namespace std;
 
 int main(int argc, char** argv) {
@@ -15,9 +16,9 @@ int main(int argc, char** argv) {
   int N = filesize / sizeof(int);
   int Nlocal = N / mpisize;
   int offset = Nlocal * mpirank;
-  int * buffer = new int [Nlocal];
+  vector<int> buffer(Nlocal);
   auto tic = chrono::steady_clock::now();
-  MPI_File_read_at(file, offset, buffer, Nlocal, MPI_INT, MPI_STATUS_IGNORE);
+  MPI_File_read_at(file, offset, &buffer[0], Nlocal, MPI_INT, MPI_STATUS_IGNORE);
   auto toc = chrono::steady_clock::now();
   MPI_File_close(&file);
   double time = chrono::duration<double>(toc - tic).count();
@@ -27,5 +28,4 @@ int main(int argc, char** argv) {
   if(!mpirank) printf("N=%d: %lf s (%lf GB/s)\n",N,time,4*N/time/1e9);
   printf("rank=%d sum=%d\n",mpirank,sum);
   MPI_Finalize();
-  return 0;
 }
