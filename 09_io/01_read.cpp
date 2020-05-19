@@ -1,20 +1,19 @@
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
-#include <sys/time.h>
+#include <chrono>
 using namespace std;
 
 int main () {
-  struct timeval tic, toc;
   ifstream file("data.bin", ios::binary | ios::ate);
   int N = file.tellg();
   char *buffer = new char [N];
   file.seekg (0, ios::beg);
-  gettimeofday(&tic, NULL);
+  auto tic = chrono::steady_clock::now();
   file.read(buffer, N);
-  gettimeofday(&toc, NULL);
+  auto toc = chrono::steady_clock::now();
   file.close();
-  double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  double time = chrono::duration<double>(toc - tic).count();
   int sum = 0;
   for (int i=0; i<N; i++) {
     sum += buffer[i] - '0';
