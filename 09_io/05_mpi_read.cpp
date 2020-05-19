@@ -1,9 +1,9 @@
 #include <mpi.h>
-#include <iostream>
-#include <sys/time.h>
+#include <cstdio>
+#include <chrono>
+using namespace std;
 
 int main(int argc, char** argv) {
-  struct timeval tic, toc;
   int mpisize, mpirank;
   MPI_File file;
   MPI_Offset filesize;
@@ -16,11 +16,11 @@ int main(int argc, char** argv) {
   int Nlocal = N / mpisize;
   int offset = Nlocal * mpirank;
   int * buffer = new int [Nlocal];
-  gettimeofday(&tic, NULL);
+  auto tic = chrono::steady_clock::now();
   MPI_File_read_at(file, offset, buffer, Nlocal, MPI_INT, MPI_STATUS_IGNORE);
-  gettimeofday(&toc, NULL);
+  auto toc = chrono::steady_clock::now();
   MPI_File_close(&file);
-  double time = toc.tv_sec-tic.tv_sec+(toc.tv_usec-tic.tv_usec)*1e-6;
+  double time = chrono::duration<double>(toc - tic).count();
   int sum = 0;
   for (int i=0; i<Nlocal; i++)
     sum += buffer[i];

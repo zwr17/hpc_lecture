@@ -1,6 +1,7 @@
-#include <iostream>
+#include <cstdio>
 #include <chrono>
 #include "H5Cpp.h"
+using namespace std;
 using namespace H5;
 
 int main (int argc, char** argv) {
