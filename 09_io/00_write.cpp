@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include <cstdio>
 #include <fstream>
 #include <chrono>
@@ -8,7 +7,7 @@ using namespace std;
 int main (int argc, char** argv) {
   const int N = 100000000;
   vector<int> buffer(N,1);
-  ofstream file("data.bin", ios::binary);
+  ofstream file("data.dat", ios::binary);
   auto tic = chrono::steady_clock::now();
   file.write((char*)&buffer[0], N*sizeof(int));
   auto toc = chrono::steady_clock::now();

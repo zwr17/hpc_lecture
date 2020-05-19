@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
   int Nlocal = N / mpisize;
   int offset = Nlocal * mpirank;
   vector<int> buffer(Nlocal,1);
-  MPI_File_open(MPI_COMM_WORLD, "data.bin", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
+  MPI_File_open(MPI_COMM_WORLD, "data.dat", MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file);
   auto tic = chrono::steady_clock::now();
   MPI_File_write_at(file, offset, &buffer[0], Nlocal, MPI_INT, MPI_STATUS_IGNORE);
   auto toc = chrono::steady_clock::now();

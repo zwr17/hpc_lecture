@@ -1,4 +1,3 @@
-#include <cstdlib>
 #include <cstdio>
 #include <fstream>
 #include <chrono>
@@ -6,7 +5,7 @@
 using namespace std;
 
 int main () {
-  ifstream file("data.bin", ios::binary | ios::ate);
+  ifstream file("data.dat", ios::binary | ios::ate);
   int N = file.tellg()/sizeof(int);
   vector<int> buffer(N);
   file.seekg (0, ios::beg);
