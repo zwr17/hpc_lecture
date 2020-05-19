@@ -11,6 +11,7 @@ int main (int argc, char** argv) {
   auto tic = chrono::steady_clock::now();
   file.write((char*)&buffer[0], N*sizeof(int));
   auto toc = chrono::steady_clock::now();
+  file.close();
   double time = chrono::duration<double>(toc - tic).count();
   printf("N=%d: %lf s (%lf GB/s)\n",N,time,4*N/time/1e9);
 }
