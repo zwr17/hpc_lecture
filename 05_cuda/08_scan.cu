@@ -4,12 +4,10 @@
 __global__ void scan(int *a, int *b, int N) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   for(int j=1; j<N; j<<=1) {
-    if (i >= j) {
-      b[i] = a[i];
-      __syncthreads();
-      a[i] += b[i-j];
-      __syncthreads();
-    }
+    b[i] = a[i];
+    __syncthreads();
+    if(i>=j) a[i] += b[i-j];
+    __syncthreads();
   }
 }
 
