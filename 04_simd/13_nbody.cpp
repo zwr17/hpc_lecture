@@ -36,8 +36,8 @@ int main() {
       fxi = _mm256_fmadd_ps(dx, mj, fxi);
       fyi = _mm256_fmadd_ps(dy, mj, fyi);
     }
-    _mm256_store_ps(fx, fxi);
-    _mm256_store_ps(fy, fyi);
+    _mm256_store_ps(fx+i, fxi);
+    _mm256_store_ps(fy+i, fyi);
   }
   for(int i=0; i<N; i++)
     printf("%d %g %g\n",i,fx[i],fy[i]);
