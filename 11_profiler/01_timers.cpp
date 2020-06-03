@@ -19,6 +19,7 @@ void matmult(matrix &A, matrix &B, matrix &C, int N) {
   float Ac[mc*kc];
   float Bc[kc*nc];
   float Cc[mc*nc];
+  double time = 0;
 #pragma omp parallel for collapse(2) private(Ac,Bc,Cc)
   for (int jc=0; jc<n; jc+=nc) {
     for (int pc=0; pc<k; pc+=kc) {
@@ -42,11 +43,14 @@ void matmult(matrix &A, matrix &B, matrix &C, int N) {
               for (int i=ir; i<ir+mr; i++) {
 		__m256 Avec = _mm256_broadcast_ss(Ac+i*kc+kr);
                 for (int j=jr; j<jr+nr; j+=8) {
+		  double tic = get_time();
                   __m256 Bvec = _mm256_load_ps(Bc+kr*nc+j);
                   __m256 Cvec = _mm256_load_ps(Cc+i*nc+j);
                   Cvec = _mm256_fmadd_ps(Avec, Bvec, Cvec);
                   _mm256_store_ps(Cc+i*nc+j, Cvec);
-                }
+		  double toc = get_time();
+		    time += toc - tic;
+		  }
               }
             }
           }
@@ -59,6 +63,7 @@ void matmult(matrix &A, matrix &B, matrix &C, int N) {
       }
     }
   }
+  printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
 }
 
 int main(int argc, char **argv) {
