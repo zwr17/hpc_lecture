@@ -21,11 +21,11 @@ double elapse = 0;
 #elif GETTIME
 struct timespec start;
 double elapse = 0;
-#elif OMPGETWTIME
+#elif OMP
 #include <omp.h>
 double start;
 double elapse;
-#elif MPIWTIME
+#elif MPI
 #include <mpi.h>
 double start;
 double elapse;
@@ -46,9 +46,9 @@ void startTimer() {
   start = system_clock::now();
 #elif GETTIME
   clock_gettime(CLOCK_REALTIME, &start);
-#elif OMPGETWTIME
+#elif OMP
   start = omp_get_wtime();
-#elif MPIWTIME
+#elif MPI
   start = MPI_Wtime();
 #endif
 }
@@ -70,9 +70,9 @@ void stopTimer() {
   struct timespec stop;
   clock_gettime(CLOCK_REALTIME, &stop);
   elapse += stop.tv_sec-start.tv_sec+(stop.tv_nsec-start.tv_nsec)*1e-9;
-#elif OMPGETWTIME
+#elif OMP
   elapse += omp_get_wtime() - start;
-#elif MPIWTIME
+#elif MPI
   elapse += MPI_Wtime() - start;
 #endif
 }
@@ -90,9 +90,9 @@ double getTime() {
   return elapse;
 #elif GETTIME
   return elapse;
-#elif OMPGETWTIME
+#elif OMP
   return elapse;
-#elif MPIWTIME
+#elif MPI
   return elapse;
 #endif
 }
