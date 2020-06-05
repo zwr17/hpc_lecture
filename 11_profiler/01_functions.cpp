@@ -62,27 +62,18 @@ void matmult(matrix &A, matrix &B, matrix &C, int N) {
 	load_block(Ac,A,mc,kc,ic,pc);
 	init_block(Cc,mc,nc);
 	block_kernel(Ac,Bc,Cc,kc,nc,mc,nr,mr);
-	/*
-	for (int jr=0; jr<nc; jr+=nr) {
-	  for (int ir=0; ir<mc; ir+=mr) {
-	    for (int kr=0; kr<kc; kr++) {
-	      for (int i=ir; i<ir+mr; i++) {
-		__m256 Avec = _mm256_broadcast_ss(Ac+i*kc+kr);
-		for (int j=jr; j<jr+nr; j+=8) {
-		  __m256 Bvec = _mm256_load_ps(Bc+kr*nc+j);
-		  __m256 Cvec = _mm256_load_ps(Cc+i*nc+j);
-		  Cvec = _mm256_fmadd_ps(Avec, Bvec, Cvec);
-		  _mm256_store_ps(Cc+i*nc+j, Cvec);
-		}
-	      }
-	    }
-	  }
-	}
-	*/
 	store_block(Cc,C,mc,nc,ic,jc);
       }
     }
   }
+}
+
+void matmult_check(matrix &A, matrix &B, matrix &C, int N) {
+#pragma omp parallel for
+  for (int i=0; i<N; i++)
+    for (int k=0; k<N; k++)
+      for (int j=0; j<N; j++)
+	C[i][j] -= A[i][k] * B[k][j];
 }
 
 int main(int argc, char **argv) {
@@ -103,11 +94,7 @@ int main(int argc, char **argv) {
   stopTimer();
   double time = getTime();
   printf("N=%d: %lf s (%lf GFlops)\n",N,time,2.*N*N*N/time/1e9);
-#pragma omp parallel for
-  for (int i=0; i<N; i++)
-    for (int k=0; k<N; k++)
-      for (int j=0; j<N; j++)
-	C[i][j] -= A[i][k] * B[k][j];
+  matmult_check(A,B,C,N);
   double err = 0;
   for (int i=0; i<N; i++)
     for (int j=0; j<N; j++)
