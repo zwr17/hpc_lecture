@@ -1,3 +1,5 @@
+#define GETTIME 1
+
 #if TIME
 #include <time.h>
 time_t start;
