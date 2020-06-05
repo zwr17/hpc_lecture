@@ -9,16 +9,22 @@
 using namespace std;
 typedef vector<vector<float>> matrix;
 
+void init_block(float *Ac, int mc, int nc) {
+  for (int i=0; i<mc; i++)
+    for (int j=0; j<nc; j++)
+      Ac[i*nc+j] = 0;
+}
+
 void load_block(float *Ac, const matrix &A, int mc, int nc, int ic, int jc) {
   for (int i=0; i<mc; i++)
     for (int j=0; j<nc; j++)
       Ac[i*nc+j] = A[i+ic][j+jc];
 }
 
-void init_block(float *Ac, int mc, int nc) {
+void store_block(float *Ac, matrix &A, int mc, int nc, int ic, int jc) {
   for (int i=0; i<mc; i++)
     for (int j=0; j<nc; j++)
-      Ac[i*nc+j] = 0;
+      A[i+ic][j+jc] += Ac[i*nc+j];
 }
 
 void matmult(matrix &A, matrix &B, matrix &C, int N) {
@@ -28,14 +34,14 @@ void matmult(matrix &A, matrix &B, matrix &C, int N) {
   const int mc = 256;
   const int nr = 64;
   const int mr = 32;
-  float Ac[mc*kc];
-  float Bc[kc*nc];
   float Cc[mc*nc];
-#pragma omp parallel for collapse(2) private(Ac,Bc,Cc)
+#pragma omp parallel for collapse(2) private(Cc)
   for (int jc=0; jc<n; jc+=nc) {
     for (int pc=0; pc<k; pc+=kc) {
+      float Bc[kc*nc];
       load_block(Bc,B,kc,nc,pc,jc);
       for (int ic=0; ic<m; ic+=mc) {
+	float Ac[mc*kc];
 	load_block(Ac,A,mc,kc,ic,pc);
 	init_block(Cc,mc,nc);
         for (int jr=0; jr<nc; jr+=nr) {
@@ -53,11 +59,7 @@ void matmult(matrix &A, matrix &B, matrix &C, int N) {
             }
           }
         }
-        for (int i=0; i<mc; i++) {
-          for (int j=0; j<nc; j++) {
-            C[i+ic][j+jc] += Cc[i*nc+j];
-          }
-        }
+	store_block(Cc,C,mc,nc,ic,jc);
       }
     }
   }
