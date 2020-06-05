@@ -27,19 +27,23 @@ void store_block(float *Ac, matrix &A, int mc, int nc, int ic, int jc) {
       A[i+ic][j+jc] += Ac[i*nc+j];
 }
 
+void micro_kernel(float *Ac, float *Bc, float *Cc, int kc, int nc, int ir, int jr, int kr, int nr, int mr) {
+  for (int i=ir; i<ir+mr; i++) {
+    __m256 Avec = _mm256_broadcast_ss(Ac+i*kc+kr);
+    for (int j=jr; j<jr+nr; j+=8) {
+      __m256 Bvec = _mm256_load_ps(Bc+kr*nc+j);
+      __m256 Cvec = _mm256_load_ps(Cc+i*nc+j);
+      Cvec = _mm256_fmadd_ps(Avec, Bvec, Cvec);
+      _mm256_store_ps(Cc+i*nc+j, Cvec);
+    }
+  }
+}
+
 void block_kernel(float *Ac, float *Bc, float *Cc, int kc, int nc, int mc, int nr, int mr) {
   for (int jr=0; jr<nc; jr+=nr) {
     for (int ir=0; ir<mc; ir+=mr) {
       for (int kr=0; kr<kc; kr++) {
-	for (int i=ir; i<ir+mr; i++) {
-	  __m256 Avec = _mm256_broadcast_ss(Ac+i*kc+kr);
-	  for (int j=jr; j<jr+nr; j+=8) {
-	    __m256 Bvec = _mm256_load_ps(Bc+kr*nc+j);
-	    __m256 Cvec = _mm256_load_ps(Cc+i*nc+j);
-	    Cvec = _mm256_fmadd_ps(Avec, Bvec, Cvec);
-	    _mm256_store_ps(Cc+i*nc+j, Cvec);
-	  }
-	}
+	micro_kernel(Ac,Bc,Cc,kc,nc,ir,jr,kr,nr,mr);
       }
     }
   }
