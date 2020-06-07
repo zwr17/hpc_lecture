@@ -6,9 +6,10 @@
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
 
-__global__ void fillBucket(unsigned *key, unsigned *bucket, int n) {
+__global__ void fillBucket(unsigned *key, unsigned *bucket, int n, int range) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
   if(i>=n) return;
+  key[i] &= range - 1;
   atomicAdd(&bucket[key[i]], 1);
 }
 
@@ -43,11 +44,14 @@ int main() {
   cudaMallocManaged(&bucket, range*sizeof(unsigned));
   cudaMallocManaged(&offset, range*sizeof(unsigned));
   cudaMallocManaged(&buffer, range*sizeof(unsigned));
-  for (int i=0; i<n; i++)
-    key[i] = rand() % range;
+  curandGenerator_t gen;
+  curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
+  curandSetPseudoRandomGeneratorSeed(gen, 1234ULL); // Do we need this?
+  curandGenerate(gen, key, n);
+  cudaDeviceSynchronize();
   for (int i=0; i<range; i++)
     bucket[i] = 0;
-  fillBucket<<<(n+m-1)/m,m>>>(key, bucket, n);
+  fillBucket<<<(n+m-1)/m,m>>>(key, bucket, n, range);
   void *args[] = {(void *)&bucket,  (void *)&offset, (void *)&buffer, (void*)&range};
   cudaLaunchCooperativeKernel((void*)scanBucket, (range+m-1)/m, m, args);
   fillKey<<<(range+m-1)/m,m>>>(key, bucket, offset, range);
