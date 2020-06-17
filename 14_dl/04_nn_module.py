@@ -21,13 +21,13 @@ model = torch.nn.Sequential(
 # define loss function
 criterion = torch.nn.MSELoss(reduction='sum')
 
-for t in range(epochs):
+for epoch in range(epochs):
     # forward pass: compute predicted y
     y_p = model(x)
 
     # compute and print loss
     loss = criterion(y_p, y)
-    print(t, loss.item())
+    print(epoch, loss.item())
 
     # backward pass
     model.zero_grad()
