@@ -15,7 +15,7 @@ y = np.random.randn(batch_size, D_out)
 w1 = np.random.randn(D_in, H)
 w2 = np.random.randn(H, D_out)
 
-for t in range(epochs):
+for epoch in range(epochs):
     # forward pass
     h = x.dot(w1) # h = x * w1
     h_r = np.maximum(h, 0) # h_r = ReLU(h)
@@ -23,7 +23,7 @@ for t in range(epochs):
 
     # compute mean squared error and print loss
     loss = np.square(y_p - y).sum()
-    print(t, loss)
+    print(epoch, loss)
 
     # backward pass: compute gradients of loss with respect to w2
     grad_y_p = 2.0 * (y_p - y)

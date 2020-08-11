@@ -15,7 +15,7 @@ y = torch.randn(batch_size, D_out)
 w1 = torch.randn(D_in, H, requires_grad=True)
 w2 = torch.randn(H, D_out, requires_grad=True)
 
-for t in range(epochs):
+for epoch in range(epochs):
     # forward pass: compute predicted y
     h = x.mm(w1)
     h_r = h.clamp(min=0)
@@ -23,7 +23,7 @@ for t in range(epochs):
 
     # compute and print loss
     loss = (y_p - y).pow(2).sum()
-    print(t, loss.item())
+    print(epoch, loss.item())
 
     # backward pass
     loss.backward()
