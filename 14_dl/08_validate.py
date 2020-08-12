@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import datasets, transforms
+import time
 
 class TwoLayerNet(nn.Module):
     def __init__(self, D_in, H, D_out):
@@ -76,6 +77,7 @@ for epoch in range(epochs):
     # Set model to training mode
     model.train()
 
+    t = time.perf_counter()
     # Loop over each batch from the training set
     for batch_idx, (x, y) in enumerate(train_loader):
         # forward pass: compute predicted y
@@ -92,8 +94,10 @@ for epoch in range(epochs):
         optimizer.step()
 
         if batch_idx % 200 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            print('Train Epoch: {} [{:>5}/{} ({:.0%})]\tLoss: {:.6f}\t Time:{:.4f}'.format(
                 epoch, batch_idx * len(x), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.data.item()))
+                batch_idx / len(train_loader), loss.data.item(),
+                time.perf_counter() - t))
+            t = time.perf_counter()
 
     validate(lossv, accv)
