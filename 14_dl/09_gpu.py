@@ -20,7 +20,7 @@ class TwoLayerNet(nn.Module):
         return F.log_softmax(y_p, dim=1)
 
 epochs = 10
-batch_size = 32
+batch_size = 64
 D_in = 784
 H = 100
 D_out = 10

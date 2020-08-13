@@ -1,10 +1,18 @@
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import datasets, transforms
+from torch.nn.parallel import DistributedDataParallel as DDP
 import time
+import os
 
-device = torch.device('cuda')
+os.environ['MASTER_ADDR'] = 'localhost'
+os.environ['MASTER_PORT'] = '8888'
+rank = int(os.getenv('OMPI_COMM_WORLD_RANK', '0'))
+world_size = int(os.getenv('OMPI_COMM_WORLD_SIZE', '1'))
+dist.init_process_group("nccl", rank=rank, world_size=world_size)
+device = torch.device('cuda',rank)
 
 class TwoLayerNet(nn.Module):
     def __init__(self, D_in, H, D_out):
@@ -36,9 +44,14 @@ validation_dataset = datasets.MNIST('./data',
                                     train=False, 
                                     transform=transforms.ToTensor())
 
+train_sampler = torch.utils.data.distributed.DistributedSampler(
+    train_dataset,
+    num_replicas=torch.distributed.get_world_size(),
+    rank=torch.distributed.get_rank())
+
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset, 
                                            batch_size=batch_size, 
-                                           shuffle=True)
+                                           sampler=train_sampler)
 
 validation_loader = torch.utils.data.DataLoader(dataset=validation_dataset, 
                                                 batch_size=batch_size, 
@@ -46,9 +59,8 @@ validation_loader = torch.utils.data.DataLoader(dataset=validation_dataset,
 
 
 # define model
-print('Using {} GPU[s]'.format(torch.cuda.device_count()))
 model = TwoLayerNet(D_in, H, D_out).to(device)
-model = nn.DataParallel(model)
+model = DDP(model, device_ids=[rank])
 
 # define loss function
 criterion = nn.CrossEntropyLoss()
@@ -111,3 +123,4 @@ for epoch in range(epochs):
             t = time.perf_counter()
 
     validate(lossv, accv)
+dist.destroy_process_group()
