@@ -4,26 +4,33 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 import time
 
-device = torch.device('cuda')
-
-class TwoLayerNet(nn.Module):
-    def __init__(self, D_in, H, D_out):
-        super(TwoLayerNet, self).__init__()
-        self.fc1 = nn.Linear(D_in, H)
-        self.fc2 = nn.Linear(H, D_out)
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(1, 32, 3, 1)
+        self.conv2 = nn.Conv2d(32, 64, 3, 1)
+        self.dropout1 = nn.Dropout2d(0.25)
+        self.dropout2 = nn.Dropout2d(0.5)
+        self.fc1 = nn.Linear(9216, 128)
+        self.fc2 = nn.Linear(128, 10)
 
     def forward(self, x):
-        x = x.view(-1, D_in)
-        h = self.fc1(x)
-        h_r = F.relu(h)
-        y_p = self.fc2(h_r)
-        return F.log_softmax(y_p, dim=1)
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = F.max_pool2d(x, 2)
+        x = self.dropout1(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc2(x)
+        output = F.log_softmax(x, dim=1)
+        return output
 
 epochs = 10
-batch_size = 64
-D_in = 784
-H = 100
-D_out = 10
+batch_size = 32
 learning_rate = 1.0e-02
 
 # read input data and labels
@@ -46,7 +53,7 @@ validation_loader = torch.utils.data.DataLoader(dataset=validation_dataset,
 
 
 # define model
-model = TwoLayerNet(D_in, H, D_out).to(device)
+model = CNN()
 
 # define loss function
 criterion = nn.CrossEntropyLoss()
@@ -58,8 +65,6 @@ def validate(loss_vector, accuracy_vector):
     model.eval()
     val_loss, correct = 0, 0
     for data, target in validation_loader:
-        data = data.to(device)
-        target = target.to(device)
         output = model(data)
         val_loss += criterion(output, target).data.item()
         pred = output.data.max(1)[1] # get the index of the max log-probability
@@ -84,10 +89,6 @@ for epoch in range(epochs):
     t = time.perf_counter()
     # Loop over each batch from the training set
     for batch_idx, (x, y) in enumerate(train_loader):
-        # Copy data to GPU if needed
-        x = x.to(device)
-        y = y.to(device)
-
         # forward pass: compute predicted y
         y_p = model(x)
 
