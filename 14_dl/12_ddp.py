@@ -14,6 +14,13 @@ world_size = int(os.getenv('OMPI_COMM_WORLD_SIZE', '1'))
 dist.init_process_group("nccl", rank=rank, world_size=world_size)
 device = torch.device('cuda',rank)
 
+def print0(message):
+    if torch.distributed.is_initialized():
+        if torch.distributed.get_rank() == 0:
+            print(message, flush=True)
+    else:
+        print(message, flush=True)
+
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
@@ -41,7 +48,7 @@ class CNN(nn.Module):
 
 epochs = 10
 batch_size = 32
-learning_rate = 1.0e-02
+learning_rate = 1.0e-02 * world_size
 
 # read input data and labels
 train_dataset = datasets.MNIST('./data', 
@@ -94,7 +101,7 @@ def validate(loss_vector, accuracy_vector):
     accuracy = 100. * correct.to(torch.float32) / len(validation_loader.dataset)
     accuracy_vector.append(accuracy)
     
-    print('\nValidation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print0('\nValidation set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         val_loss, correct, len(validation_loader.dataset), accuracy))
 
 
@@ -125,7 +132,7 @@ for epoch in range(epochs):
         optimizer.step()
 
         if batch_idx % 200 == 0:
-            print('Train Epoch: {} [{:>5}/{} ({:.0%})]\tLoss: {:.6f}\t Time:{:.4f}'.format(
+            print0('Train Epoch: {} [{:>5}/{} ({:.0%})]\tLoss: {:.6f}\t Time:{:.4f}'.format(
                 epoch, batch_idx * len(x), len(train_loader.dataset),
                 batch_idx / len(train_loader), loss.data.item(),
                 time.perf_counter() - t))
